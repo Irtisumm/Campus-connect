@@ -1,0 +1,360 @@
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+import 'package:provider/provider.dart';
+import '../../widgets/common.dart';
+import '../../data/mock_data.dart';
+import '../../theme/app_theme.dart';
+import '../../services/data_service.dart';
+import '../../services/app_state.dart';
+
+void _toast(BuildContext ctx, String msg) => ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+  content: Text(msg, style: const TextStyle(fontWeight: FontWeight.w600)),
+  behavior: SnackBarBehavior.floating, backgroundColor: AppTheme.textPrimary,
+  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)), duration: const Duration(seconds: 2)));
+
+AppBar _appBar(String t, BuildContext ctx) => AppBar(
+  title: Text(t), backgroundColor: Colors.transparent,
+  flexibleSpace: Container(decoration: const BoxDecoration(gradient: AppTheme.headerGradient)),
+  leading: IconButton(icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white), onPressed: () => ctx.pop()));
+
+// ── Screen 15: Issues Hub ────────────────────────────────────────
+class IssuesHubScreen extends StatelessWidget {
+  const IssuesHubScreen({super.key});
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<DataService>(
+      builder: (context, dataService, child) {
+        final inProg = dataService.myIssues.where((i) => i.status == 'In Progress').length;
+        final res    = dataService.myIssues.where((i) => i.status == 'Resolved').length;
+        final newC   = dataService.myIssues.where((i) => i.status == 'New').length;
+        return Scaffold(
+          body: SafeArea(child: SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const NoticeBox(message: 'Use this to report facility, safety, IT, or other campus problems. Max 5 reports per day.'),
+            HubButton(icon: Icons.warning_amber_rounded, label: 'Report an Issue', subtitle: 'Submit a new campus issue', isPrimary: true, onTap: () => context.push('/issues/report')).animate().fadeIn(delay:50.ms).slideY(begin:0.2),
+            HubButton(icon: Icons.description_rounded, label: 'My Issues', subtitle: '${dataService.myIssues.length} submitted', onTap: () => context.push('/issues/my-issues')).animate().fadeIn(delay:100.ms).slideY(begin:0.2),
+            const SectionLabel('My Stats'),
+            Row(children: [
+              Expanded(child: StatCard(value: '$inProg', label: 'In Progress', valueColor: AppTheme.red, bgColor: AppTheme.red.withOpacity(0.06))),
+              const SizedBox(width: 10),
+              Expanded(child: StatCard(value: '$res', label: 'Resolved', valueColor: AppTheme.redDark, bgColor: AppTheme.red.withOpacity(0.07))),
+              const SizedBox(width: 10),
+              Expanded(child: StatCard(value: '$newC', label: 'New')),
+            ]).animate().fadeIn(delay:150.ms),
+          ]))),
+        );
+      },
+    );
+  }
+}
+
+// ── Screen 16: Report Issue ──────────────────────────────────────
+class ReportIssueScreen extends StatefulWidget {
+  const ReportIssueScreen({super.key});
+  @override State<ReportIssueScreen> createState() => _ReportIssueState();
+}
+class _ReportIssueState extends State<ReportIssueScreen> {
+  final _key = GlobalKey<FormState>();
+  String? _cat, _loc;
+  final _titleC = TextEditingController();
+  final _descC  = TextEditingController();
+  bool _done = false;
+  static const _cats = ['Facilities','Safety','Cleanliness','IT','Other'];
+  static const _locs = ['Block A','Block B','Block C','Library','Cafeteria','Sports Complex','Main Entrance','Other'];
+
+  @override
+  Widget build(BuildContext context) {
+    if (_done) return _SuccessIssue(onHome: () => context.go('/issues'), onView: () => context.push('/issues/my-issues'));
+    return Scaffold(
+      appBar: _appBar('Report an Issue', context),
+      body: SingleChildScrollView(padding: const EdgeInsets.all(16), child: Form(key: _key, child: Column(children: [
+        NoticeBox(message: 'Please report genuine issues only. Abuse may result in restrictions.', borderColor: AppTheme.danger, bgColor: AppTheme.danger.withOpacity(0.06), textColor: const Color(0xFF8B2020), icon: Icons.warning_amber_rounded),
+        _Drop(label: 'Category', value: _cat, items: _cats, onChanged: (v) => setState(() => _cat = v)),
+        _Field(label: 'Issue Title', hint: 'Brief title', ctrl: _titleC, validator: (v) => v!.isEmpty ? 'Required' : null),
+        _Area(label: 'Description', hint: 'Describe the problem in detail…', ctrl: _descC),
+        _Drop(label: 'Location', value: _loc, items: _locs, onChanged: (v) => setState(() => _loc = v)),
+        const SizedBox(height: 16),
+        GradientButton(label: 'Submit Issue', onPressed: () {
+          if (_key.currentState!.validate() && _cat != null && _loc != null) {
+            final newIssue = Issue(
+              id: 'I${DateTime.now().millisecondsSinceEpoch}',
+              title: _titleC.text.trim(),
+              category: _cat!,
+              location: _loc!,
+              status: 'New',
+              createdDate: DateTime.now().toString().split('.')[0],
+              updatedDate: DateTime.now().toString().split('.')[0],
+              description: _descC.text.trim(),
+              studentId: context.read<AppState>().userId ?? 'S001',
+            );
+            context.read<DataService>().reportIssue(newIssue);
+            setState(() => _done = true);
+          }
+        }),
+        const SizedBox(height: 10),
+        OutlineBtn(label: 'Cancel', onPressed: () => context.pop()),
+      ]))),
+    );
+  }
+}
+
+// ── Screen 17: My Issues ─────────────────────────────────────────
+class MyIssuesScreen extends StatelessWidget {
+  const MyIssuesScreen({super.key});
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<DataService>(
+      builder: (context, dataService, child) {
+        final data = dataService.myIssues;
+        return Scaffold(
+          appBar: _appBar('My Issues', context),
+          floatingActionButton: FloatingActionButton.extended(
+            onPressed: () => context.push('/issues/report'),
+            backgroundColor: AppTheme.red,
+            icon: const Icon(Icons.add, color: Colors.white),
+            label: const Text('Report', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+          ),
+          body: data.isEmpty
+              ? const EmptyState(title: 'No Issues Yet', subtitle: 'You haven\'t submitted any issues.', icon: Icons.task_alt_rounded)
+              : ListView.builder(padding: const EdgeInsets.fromLTRB(16,16,16,80), itemCount: data.length, itemBuilder: (ctx, i) {
+                  final it = data[i];
+                  return CardRow(title: it.title, subtitle: '${it.category} · ${it.location}', extra: 'Updated ${relativeTime(it.updatedDate)}', status: it.status, onTap: () => context.push('/issues/detail/${it.id}')).animate().fadeIn(delay: (i*60).ms).slideY(begin:0.15);
+                }),
+        );
+      },
+    );
+  }
+}
+
+// ── Screen 18: Issue Detail (Student) ───────────────────────────
+class IssueDetailScreen extends StatelessWidget {
+  final String id;
+  const IssueDetailScreen({super.key, required this.id});
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<DataService>(
+      builder: (context, dataService, child) {
+        final it = dataService.myIssues.firstWhere((x) => x.id == id, orElse: () => dataService.myIssues.isNotEmpty ? dataService.myIssues.first : Issue(
+          id: '', title: 'Issue Not Found', category: '', location: '',
+          status: 'Unknown', createdDate: '', updatedDate: '', description: '', studentId: ''
+        ));
+        final hist = MockData.issueHistory[it.id] ?? [];
+        return Scaffold(
+          appBar: _appBar(it.id, context),
+          body: SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Card(child: Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [Expanded(child: Text(it.title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800))), StatusBadge(it.status)]),
+              const Divider(height: 20),
+              InfoRow(label: 'Category', value: it.category),
+              InfoRow(label: 'Location', value: it.location),
+              InfoRow(label: 'Submitted', value: fmtDate(it.createdDate)),
+              InfoRow(label: 'Last Updated', value: fmtDate(it.updatedDate)),
+              const Divider(height: 12),
+              const Text('Description', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppTheme.textMuted)),
+              const SizedBox(height: 8),
+              Text(it.description, style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary, height: 1.65)),
+            ]))),
+            if (it.status == 'Resolved') ...[
+              const SizedBox(height: 8),
+              Container(padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: AppTheme.red.withOpacity(0.08), borderRadius: BorderRadius.circular(14), border: Border.all(color: AppTheme.red.withOpacity(0.25))), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Text('✅ Is this issue resolved for you?', style: TextStyle(fontWeight: FontWeight.w700)),
+                const SizedBox(height: 10),
+                Row(children: [
+                  Expanded(child: GradientButton(label: 'Yes, close it', gradient: const LinearGradient(colors: [AppTheme.red, AppTheme.redDark]), onPressed: () => _toast(context, 'Issue closed. Thank you!'))),
+                  const SizedBox(width: 10),
+                  Expanded(child: GradientButton(label: 'No, still not fixed', gradient: const LinearGradient(colors: [AppTheme.danger, Color(0xFFC04848)]), onPressed: () => _toast(context, 'Feedback sent. Issue re-opened.'))),
+                ]),
+              ])),
+            ],
+            if (hist.isNotEmpty) ...[
+              const SectionLabel('Status Timeline'),
+              ...hist.map((h) => _TimelineItem(date: h.date, text: (h.from != null ? '${h.from} → ${h.to}' : 'Created: ${h.to}') + (h.note != null ? ' — ${h.note}' : ''))),
+            ],
+          ])),
+        );
+      },
+    );
+  }
+}
+
+// ── Screen 19: Issues Dashboard (Admin) ─────────────────────────
+class AdminIssuesDashboardScreen extends StatelessWidget {
+  const AdminIssuesDashboardScreen({super.key});
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<DataService>(
+      builder: (context, dataService, child) {
+        final all = dataService.allIssues;
+        final cats = ['Facilities','Safety','IT','Cleanliness','Other'];
+        return Scaffold(
+          body: SafeArea(child: SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const AdminBar(), const SizedBox(height: 10),
+            Row(children: [
+              Expanded(child: StatCard(value: '${all.where((i) => i.status=='New').length}', label: 'New')),
+              const SizedBox(width: 10),
+              Expanded(child: StatCard(value: '${all.where((i) => i.status=='In Progress' || i.status=='Assigned').length}', label: 'In Progress', valueColor: AppTheme.red, bgColor: AppTheme.red.withOpacity(0.06))),
+              const SizedBox(width: 10),
+              Expanded(child: StatCard(value: '${all.where((i) => i.status=='Resolved').length}', label: 'Resolved', valueColor: AppTheme.redDark, bgColor: AppTheme.red.withOpacity(0.07))),
+            ]).animate().fadeIn(delay:50.ms),
+            const SectionLabel('Category Breakdown'),
+            Card(child: Padding(padding: const EdgeInsets.all(14), child: Column(children: cats.map((cat) {
+              final count = all.where((i) => i.category == cat).length;
+              final pct   = all.isNotEmpty ? count / all.length : 0.0;
+              return Padding(padding: const EdgeInsets.only(bottom: 12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text(cat, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)), Text('$count', style: const TextStyle(fontSize: 12, color: AppTheme.textMuted))]),
+                const SizedBox(height: 5),
+                ClipRRect(borderRadius: BorderRadius.circular(3), child: LinearProgressIndicator(value: pct, backgroundColor: AppTheme.red.withOpacity(0.08), color: AppTheme.red, minHeight: 6)),
+              ]));
+            }).toList()))),
+            GradientButton(label: 'View All Issues', onPressed: () => context.push('/admin/issues/list')),
+          ]))),
+        );
+      },
+    );
+  }
+}
+
+// ── Screen 20: Issues List (Admin) ───────────────────────────────
+class AdminIssuesListScreen extends StatelessWidget {
+  const AdminIssuesListScreen({super.key});
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<DataService>(
+      builder: (context, dataService, child) {
+        final data = dataService.allIssues;
+        return Scaffold(
+          appBar: _appBar('All Issues', context),
+          body: Column(children: [
+            const Padding(padding: EdgeInsets.fromLTRB(16,8,16,0), child: AdminBar()),
+            Expanded(child: ListView.builder(padding: const EdgeInsets.all(16), itemCount: data.length, itemBuilder: (ctx, i) {
+              final it = data[i];
+              return CardRow(title: it.title, subtitle: '${it.studentId ?? ''} · ${it.category} · ${it.location}', extra: fmtDate(it.createdDate), status: it.status, onTap: () => context.push('/admin/issues/detail/${it.id}')).animate().fadeIn(delay: (i*55).ms).slideY(begin:0.12);
+            })),
+          ]),
+        );
+      },
+    );
+  }
+}
+
+// ── Screen 21: Issue Detail (Admin) ─────────────────────────────
+class AdminIssueDetailScreen extends StatefulWidget {
+  final String id;
+  const AdminIssueDetailScreen({super.key, required this.id});
+  @override
+  State<AdminIssueDetailScreen> createState() => _AdminIssueDetailScreenState();
+}
+
+class _AdminIssueDetailScreenState extends State<AdminIssueDetailScreen> {
+  late String _selectedStatus;
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<DataService>(
+      builder: (context, dataService, child) {
+        final it = dataService.allIssues.firstWhere((x) => x.id == widget.id, orElse: () => Issue(
+          id: '', title: 'Issue Not Found', category: '', location: '',
+          status: 'Unknown', createdDate: '', updatedDate: '', description: '', studentId: ''
+        ));
+        final hist = MockData.issueHistory[it.id] ?? [];
+
+        _selectedStatus = it.status;
+
+        return Scaffold(
+          appBar: _appBar(it.id, context),
+          body: SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const AdminBar(), const SizedBox(height: 8),
+            Card(child: Padding(padding: const EdgeInsets.all(16), child: Column(children: [
+              Row(children: [Expanded(child: Text(it.title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800))), StatusBadge(it.status)]),
+              const Divider(height: 18),
+              if (it.studentId != null) InfoRow(label: 'Student ID', value: it.studentId!),
+              InfoRow(label: 'Category', value: it.category),
+              InfoRow(label: 'Location', value: it.location),
+              InfoRow(label: 'Created', value: fmtDate(it.createdDate)),
+            ]))),
+            const SectionLabel('Update Status'),
+            Card(child: Padding(padding: const EdgeInsets.all(14), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              DropdownButtonFormField<String>(
+                initialValue: it.status,
+                decoration: const InputDecoration(labelText: 'Change Status'),
+                items: ['New','Triaged','Assigned','In Progress','Resolved','Closed - Verified'].map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
+                onChanged: (value) => setState(() => _selectedStatus = value ?? it.status),
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                initialValue: 'Facilities Management',
+                decoration: const InputDecoration(labelText: 'Assigned Department'),
+                items: ['Facilities Management','IT Services','Security Office','Housekeeping','General Admin'].map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
+                onChanged: (_) {},
+              ),
+              const SizedBox(height: 12),
+              TextFormField(maxLines: 3, decoration: const InputDecoration(labelText: 'Admin Note', hintText: 'Note about this status change…', alignLabelWithHint: true)),
+            ]))),
+            GradientButton(
+              label: 'Update Status',
+              onPressed: () {
+                dataService.updateIssueStatus(it.id, _selectedStatus);
+                _toast(context, 'Status updated to $_selectedStatus');
+              },
+            ),
+            if (hist.isNotEmpty) ...[
+              const SectionLabel('Timeline'),
+              ...hist.map((h) => _TimelineItem(date: h.date, text: (h.from != null ? '${h.from} → ${h.to}' : 'Created: ${h.to}') + (h.note != null ? ' — ${h.note}' : ''))),
+            ],
+          ])),
+        );
+      },
+    );
+  }
+}
+
+// ── Timeline Item ────────────────────────────────────────────────
+class _TimelineItem extends StatelessWidget {
+  final String date, text;
+  const _TimelineItem({required this.date, required this.text});
+  @override
+  Widget build(BuildContext context) => Padding(padding: const EdgeInsets.only(left: 16, bottom: 10), child: IntrinsicHeight(child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    Column(children: [Container(width: 10, height: 10, decoration: BoxDecoration(color: AppTheme.red, shape: BoxShape.circle, border: Border.all(color: AppTheme.creamLight, width: 2))), Expanded(child: Container(width: 2, color: AppTheme.red.withOpacity(0.2)))]),
+    const SizedBox(width: 12),
+    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(fmtDate(date), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppTheme.red)), const SizedBox(height: 2), Text(text, style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary, height: 1.5)), const SizedBox(height: 8)])),
+  ])));
+}
+
+// ── Shared helpers ────────────────────────────────────────────────
+class _Drop extends StatelessWidget {
+  final String label; final String? value; final List<String> items; final void Function(String?) onChanged;
+  const _Drop({required this.label, required this.value, required this.items, required this.onChanged});
+  @override Widget build(BuildContext context) => Padding(padding: const EdgeInsets.only(bottom: 16),
+    child: DropdownButtonFormField<String>(initialValue: value, decoration: InputDecoration(labelText: label),
+      items: items.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(), onChanged: onChanged));
+}
+class _Field extends StatelessWidget {
+  final String label, hint; final TextEditingController ctrl; final String? Function(String?)? validator;
+  const _Field({required this.label, required this.hint, required this.ctrl, this.validator});
+  @override Widget build(BuildContext context) => Padding(padding: const EdgeInsets.only(bottom: 16),
+    child: TextFormField(controller: ctrl, validator: validator, decoration: InputDecoration(labelText: label, hintText: hint)));
+}
+class _Area extends StatelessWidget {
+  final String label, hint; final TextEditingController ctrl;
+  const _Area({required this.label, required this.hint, required this.ctrl});
+  @override Widget build(BuildContext context) => Padding(padding: const EdgeInsets.only(bottom: 16),
+    child: TextFormField(controller: ctrl, maxLines: 4, decoration: InputDecoration(labelText: label, hintText: hint, alignLabelWithHint: true)));
+}
+
+class _SuccessIssue extends StatelessWidget {
+  final VoidCallback onHome, onView;
+  const _SuccessIssue({required this.onHome, required this.onView});
+  @override
+  Widget build(BuildContext context) => Scaffold(body: Center(child: Padding(padding: const EdgeInsets.all(32), child: Column(mainAxisSize: MainAxisSize.min, children: [
+    Container(width: 80, height: 80, decoration: BoxDecoration(gradient: LinearGradient(colors: [AppTheme.red.withOpacity(0.2), AppTheme.redLight.withOpacity(0.15)]), shape: BoxShape.circle),
+        child: const Icon(Icons.check_rounded, color: AppTheme.red, size: 40)).animate().scale(delay: 100.ms, duration: 400.ms, curve: Curves.elasticOut),
+    const SizedBox(height: 24),
+    const Text('Issue Reported!', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800)).animate().fadeIn(delay: 200.ms),
+    const SizedBox(height: 12),
+    const Text('Your issue has been submitted. You will be notified as the status updates.', textAlign: TextAlign.center, style: TextStyle(fontSize: 14, color: AppTheme.textSecondary, height: 1.65)).animate().fadeIn(delay: 300.ms),
+    const SizedBox(height: 28),
+    GradientButton(label: 'View My Issues', onPressed: onView),
+    const SizedBox(height: 10),
+    OutlineBtn(label: 'Back to Hub', onPressed: onHome),
+  ]))));
+}
