@@ -28,6 +28,13 @@ class StatusBadge extends StatelessWidget {
     'Pending':                [Color(0xFF8A5F0A), Color(0x28F8D49B)],
     'Released':               [Color(0xFF4E6272), Color(0x18607080)],
     'Completed':              [Color(0xFF4E6272), Color(0x15607080)],
+    'Approved':               [Color(0xFF2E7D32), Color(0x1A4CAF50)],
+    'Rejected':               [Color(0xFFB03030), Color(0x18D65E5E)],
+    'Received':               [Color(0xFF2E7D32), Color(0x1A4CAF50)],
+    'Archived':               [Color(0xFF4E6272), Color(0x15607080)],
+    'Claiming':               [Color(0xFF8A5F0A), Color(0x28F8D49B)],
+    'In Review':              [Color(0xFF8A5F0A), Color(0x28F8D49B)],
+    'Closed - Verified':      [Color(0xFF4E6272), Color(0x18607080)],
   };
 
   @override

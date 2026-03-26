@@ -13,7 +13,9 @@ class AppState extends ChangeNotifier {
   }
 
   Future<bool> loginUser(String id, String password, bool isAdmin) async {
-    return await _authService.login(id, password, isAdmin);
+    final result = await _authService.login(id, password, isAdmin);
+    if (result) notifyListeners();
+    return result;
   }
 
   void logout() {
@@ -25,5 +27,14 @@ class AppState extends ChangeNotifier {
     final result = await _authService.login(id, password, toAdmin);
     if (result) notifyListeners();
     return result;
+  }
+
+  // Register a new student account (called after admin approval)
+  void addApprovedStudent(String studentId, String password, String name) {
+    _authService.addApprovedStudent(studentId, password, name);
+  }
+
+  bool isStudentIdTaken(String studentId) {
+    return _authService.isStudentIdTaken(studentId);
   }
 }

@@ -7,11 +7,14 @@ import 'theme/app_theme.dart';
 import 'services/app_state.dart';
 import 'services/data_service.dart';
 import 'services/photo_service.dart';
+import 'screens/auth/splash_screen.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/lost_found/lost_found_screens.dart';
 import 'screens/issues/issues_screens.dart';
 import 'screens/events/events_screens.dart';
 import 'screens/lockers/lockers_screens.dart';
+import 'screens/auth/registration_screen.dart';
+import 'screens/admin/admin_registrations_screen.dart';
 
 
 // ── Main ─────────────────────────────────────────────────────────
@@ -36,8 +39,12 @@ void main() {
 
 // ── Router ────────────────────────────────────────────────────────
 final _router = GoRouter(
-  initialLocation: '/lost-found',
+  initialLocation: '/',
   routes: [
+    // ── Splash & Auth ──────────────────────────────────────────
+    GoRoute(path: '/',      builder: (_, __) => const SplashScreen()),
+    GoRoute(path: '/login', builder: (_, __) => const LoginScreen()),
+    GoRoute(path: '/register', builder: (_, __) => const RegistrationScreen()),
     // ── Shell with bottom nav ──────────────────────────────────
     ShellRoute(
       builder: (ctx, state, child) => AppShell(child: child),
@@ -86,6 +93,8 @@ final _router = GoRouter(
     // ── Admin Lockers ────────────────────────────────────────────
     GoRoute(path: '/admin/lockers/list',       builder: (_, __) => const AdminLockersListScreen()),
     GoRoute(path: '/admin/lockers/detail/:id', builder: (_, s) => AdminLockerDetailScreen(id: s.pathParameters['id']!)),
+    // ── Admin Registrations ─────────────────────────────────────
+    GoRoute(path: '/admin/registrations', builder: (_, __) => const AdminRegistrationsScreen()),
   ],
 );
 
@@ -164,7 +173,7 @@ class AppShell extends StatelessWidget {
                     final result = await showDialog(
                       context: context,
                       barrierDismissible: false,
-                      builder: (_) => const LoginScreen(isAdminLogin: true),
+                      builder: (_) => const LoginScreen(isAdminLogin: true, isDialog: true),
                     );
 
                     if (result == true) {
@@ -196,12 +205,25 @@ class AppShell extends StatelessWidget {
               },
             ),
             const SizedBox(width: 8),
-            // Notification bell
-            GestureDetector(onTap: () => context.push('/lost-found/notifications'), child: Stack(children: [
-              Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), borderRadius: BorderRadius.circular(10)),
-                  child: const Icon(Icons.notifications_rounded, color: Colors.white, size: 20)),
-              Positioned(top: 4, right: 4, child: Container(width: 8, height: 8, decoration: const BoxDecoration(color: Colors.orange, shape: BoxShape.circle))),
-            ])),
+            // Notification bell with dynamic badge
+            Consumer<DataService>(
+              builder: (context, dataService, child) {
+                final unreadCount = dataService.unreadNotificationCount;
+                return GestureDetector(
+                  onTap: () => context.push('/lost-found/notifications'),
+                  child: Stack(children: [
+                    Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), borderRadius: BorderRadius.circular(10)),
+                        child: const Icon(Icons.notifications_rounded, color: Colors.white, size: 20)),
+                    if (unreadCount > 0) Positioned(top: 2, right: 2, child: Container(
+                      padding: const EdgeInsets.all(3),
+                      constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                      decoration: const BoxDecoration(color: Colors.orange, shape: BoxShape.circle),
+                      child: Text('$unreadCount', textAlign: TextAlign.center, style: const TextStyle(fontSize: 8, fontWeight: FontWeight.w800, color: Colors.white)),
+                    )),
+                  ]),
+                );
+              },
+            ),
           ]))),
         ),
       ),

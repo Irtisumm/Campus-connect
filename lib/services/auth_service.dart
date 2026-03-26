@@ -11,8 +11,8 @@ class AuthService extends ChangeNotifier {
   String? get userId => _userId;
   String? get userName => _userName;
 
-  // Sample credentials (in production, use backend)
-  static const _studentAccounts = {
+  // Student accounts (can be expanded via registration approval)
+  final Map<String, Map<String, String>> _studentAccounts = {
     'S001': {'password': 'pass123', 'name': 'Ahmad Rizwan'},
     'S002': {'password': 'pass123', 'name': 'Fatima Hassan'},
     'S003': {'password': 'pass123', 'name': 'Mohammad Ali'},
@@ -54,5 +54,16 @@ class AuthService extends ChangeNotifier {
     logout();
     await Future.delayed(const Duration(milliseconds: 300));
     await login(id, password, toAdmin);
+  }
+
+  // Register a new student account (after admin approval, the account gets added)
+  void addApprovedStudent(String studentId, String password, String name) {
+    _studentAccounts[studentId] = {'password': password, 'name': name};
+    notifyListeners();
+  }
+
+  // Check if a student ID is already taken
+  bool isStudentIdTaken(String studentId) {
+    return _studentAccounts.containsKey(studentId);
   }
 }

@@ -134,7 +134,7 @@ class IssueDetailScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer<DataService>(
       builder: (context, dataService, child) {
-        final it = dataService.myIssues.firstWhere((x) => x.id == id, orElse: () => dataService.myIssues.isNotEmpty ? dataService.myIssues.first : Issue(
+        final it = dataService.myIssues.firstWhere((x) => x.id == id, orElse: () => dataService.myIssues.isNotEmpty ? dataService.myIssues.first : const Issue(
           id: '', title: 'Issue Not Found', category: '', location: '',
           status: 'Unknown', createdDate: '', updatedDate: '', description: '', studentId: ''
         ));
@@ -157,12 +157,18 @@ class IssueDetailScreen extends StatelessWidget {
             if (it.status == 'Resolved') ...[
               const SizedBox(height: 8),
               Container(padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: AppTheme.red.withOpacity(0.08), borderRadius: BorderRadius.circular(14), border: Border.all(color: AppTheme.red.withOpacity(0.25))), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                const Text('✅ Is this issue resolved for you?', style: TextStyle(fontWeight: FontWeight.w700)),
+                const Text('Is this issue resolved for you?', style: TextStyle(fontWeight: FontWeight.w700)),
                 const SizedBox(height: 10),
                 Row(children: [
-                  Expanded(child: GradientButton(label: 'Yes, close it', gradient: const LinearGradient(colors: [AppTheme.red, AppTheme.redDark]), onPressed: () => _toast(context, 'Issue closed. Thank you!'))),
+                  Expanded(child: GradientButton(label: 'Yes, close it', gradient: const LinearGradient(colors: [AppTheme.red, AppTheme.redDark]), onPressed: () {
+                    dataService.updateIssueStatus(it.id, 'Closed - Verified');
+                    _toast(context, 'Issue closed. Thank you!');
+                  })),
                   const SizedBox(width: 10),
-                  Expanded(child: GradientButton(label: 'No, still not fixed', gradient: const LinearGradient(colors: [AppTheme.danger, Color(0xFFC04848)]), onPressed: () => _toast(context, 'Feedback sent. Issue re-opened.'))),
+                  Expanded(child: GradientButton(label: 'No, still not fixed', gradient: const LinearGradient(colors: [AppTheme.danger, Color(0xFFC04848)]), onPressed: () {
+                    dataService.updateIssueStatus(it.id, 'In Progress');
+                    _toast(context, 'Feedback sent. Issue re-opened.');
+                  })),
                 ]),
               ])),
             ],
@@ -226,10 +232,13 @@ class AdminIssuesListScreen extends StatelessWidget {
           appBar: _appBar('All Issues', context),
           body: Column(children: [
             const Padding(padding: EdgeInsets.fromLTRB(16,8,16,0), child: AdminBar()),
-            Expanded(child: ListView.builder(padding: const EdgeInsets.all(16), itemCount: data.length, itemBuilder: (ctx, i) {
-              final it = data[i];
-              return CardRow(title: it.title, subtitle: '${it.studentId ?? ''} · ${it.category} · ${it.location}', extra: fmtDate(it.createdDate), status: it.status, onTap: () => context.push('/admin/issues/detail/${it.id}')).animate().fadeIn(delay: (i*55).ms).slideY(begin:0.12);
-            })),
+            Expanded(child: data.isEmpty
+                ? const EmptyState(title: 'No Issues', subtitle: 'No issues have been reported yet.', icon: Icons.task_alt_rounded)
+                : ListView.builder(padding: const EdgeInsets.all(16), itemCount: data.length, itemBuilder: (ctx, i) {
+                    final it = data[i];
+                    return CardRow(title: it.title, subtitle: '${it.studentId ?? ''} · ${it.category} · ${it.location}', extra: fmtDate(it.createdDate), status: it.status, onTap: () => context.push('/admin/issues/detail/${it.id}')).animate().fadeIn(delay: (i*55).ms).slideY(begin:0.12);
+                  }),
+            ),
           ]),
         );
       },
@@ -238,6 +247,9 @@ class AdminIssuesListScreen extends StatelessWidget {
 }
 
 // ── Screen 21: Issue Detail (Admin) ─────────────────────────────
+// CRITICAL BUG FIX: _selectedStatus was being reset on every rebuild
+// because it was assigned inside build(). Now uses _initialized flag
+// to only set it once from the issue data, preserving dropdown changes.
 class AdminIssueDetailScreen extends StatefulWidget {
   final String id;
   const AdminIssueDetailScreen({super.key, required this.id});
@@ -246,19 +258,59 @@ class AdminIssueDetailScreen extends StatefulWidget {
 }
 
 class _AdminIssueDetailScreenState extends State<AdminIssueDetailScreen> {
-  late String _selectedStatus;
+  String? _selectedStatus;
+  bool _initialized = false;
+
+  void _confirmDelete(BuildContext context, DataService dataService, Issue issue) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Issue', style: TextStyle(fontWeight: FontWeight.w800)),
+        content: Text('Are you sure you want to delete "${issue.title}"?\n\nThis action cannot be undone and will remove the issue from both admin and student views.'),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel', style: TextStyle(color: AppTheme.textMuted)),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              dataService.deleteIssue(issue.id);
+              _toast(context, 'Issue "${issue.title}" deleted');
+              context.pop(); // Go back to issues list
+            },
+            child: const Text('Delete', style: TextStyle(color: AppTheme.danger, fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return Consumer<DataService>(
       builder: (context, dataService, child) {
-        final it = dataService.allIssues.firstWhere((x) => x.id == widget.id, orElse: () => Issue(
+        final it = dataService.allIssues.firstWhere((x) => x.id == widget.id, orElse: () => const Issue(
           id: '', title: 'Issue Not Found', category: '', location: '',
           status: 'Unknown', createdDate: '', updatedDate: '', description: '', studentId: ''
         ));
         final hist = MockData.issueHistory[it.id] ?? [];
 
-        _selectedStatus = it.status;
+        // Only initialize _selectedStatus once from the issue data.
+        // After that, the dropdown controls _selectedStatus independently.
+        if (!_initialized && it.id.isNotEmpty) {
+          _selectedStatus = it.status;
+          _initialized = true;
+        }
+
+        // If issue was deleted (not found), show a message
+        if (it.id.isEmpty) {
+          return Scaffold(
+            appBar: _appBar('Issue', context),
+            body: const Center(child: EmptyState(title: 'Issue Not Found', subtitle: 'This issue may have been deleted.', icon: Icons.search_off_rounded)),
+          );
+        }
 
         return Scaffold(
           appBar: _appBar(it.id, context),
@@ -271,14 +323,19 @@ class _AdminIssueDetailScreenState extends State<AdminIssueDetailScreen> {
               InfoRow(label: 'Category', value: it.category),
               InfoRow(label: 'Location', value: it.location),
               InfoRow(label: 'Created', value: fmtDate(it.createdDate)),
+              InfoRow(label: 'Last Updated', value: fmtDate(it.updatedDate)),
+              const Divider(height: 12),
+              const Text('Description', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppTheme.textMuted)),
+              const SizedBox(height: 8),
+              Text(it.description, style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary, height: 1.65)),
             ]))),
             const SectionLabel('Update Status'),
             Card(child: Padding(padding: const EdgeInsets.all(14), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               DropdownButtonFormField<String>(
-                initialValue: it.status,
+                value: _selectedStatus,
                 decoration: const InputDecoration(labelText: 'Change Status'),
                 items: ['New','Triaged','Assigned','In Progress','Resolved','Closed - Verified'].map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
-                onChanged: (value) => setState(() => _selectedStatus = value ?? it.status),
+                onChanged: (value) => setState(() => _selectedStatus = value),
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
@@ -290,12 +347,34 @@ class _AdminIssueDetailScreenState extends State<AdminIssueDetailScreen> {
               const SizedBox(height: 12),
               TextFormField(maxLines: 3, decoration: const InputDecoration(labelText: 'Admin Note', hintText: 'Note about this status change…', alignLabelWithHint: true)),
             ]))),
+            const SizedBox(height: 4),
             GradientButton(
               label: 'Update Status',
               onPressed: () {
-                dataService.updateIssueStatus(it.id, _selectedStatus);
-                _toast(context, 'Status updated to $_selectedStatus');
+                if (_selectedStatus != null && _selectedStatus != it.status) {
+                  dataService.updateIssueStatus(it.id, _selectedStatus!);
+                  _toast(context, 'Status updated to $_selectedStatus');
+                  // Reset initialized so it picks up the new saved status
+                  _initialized = false;
+                } else if (_selectedStatus == it.status) {
+                  _toast(context, 'Status is already "$_selectedStatus"');
+                }
               },
+            ),
+            const SizedBox(height: 8),
+            // Delete Issue button with confirmation
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () => _confirmDelete(context, dataService, it),
+                icon: const Icon(Icons.delete_forever_rounded, color: AppTheme.danger),
+                label: const Text('Delete Issue', style: TextStyle(color: AppTheme.danger, fontWeight: FontWeight.w700)),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: AppTheme.danger, width: 1.5),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+              ),
             ),
             if (hist.isNotEmpty) ...[
               const SectionLabel('Timeline'),

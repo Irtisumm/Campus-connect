@@ -58,6 +58,9 @@ class EventsHubScreen extends StatelessWidget {
                           Center(child: Icon(Icons.event_rounded, size: 42, color: (colors[1]).withOpacity(0.4))),
                           Positioned(top: 10, right: 10, child: Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: colors[0], borderRadius: BorderRadius.circular(999), border: Border.all(color: colors[1])),
                               child: Text(ev.category, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: colors[1])))),
+                          if (ev.status == 'Completed')
+                            Positioned(top: 10, left: 10, child: Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: const Color(0xFF4E6272).withOpacity(0.15), borderRadius: BorderRadius.circular(999), border: Border.all(color: const Color(0xFF4E6272))),
+                                child: const Text('COMPLETED', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFF4E6272))))),
                         ])),
                       Padding(padding: const EdgeInsets.all(14), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                         Text(ev.title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: AppTheme.textPrimary)),
@@ -86,7 +89,7 @@ class EventDetailScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer<DataService>(
       builder: (context, dataService, child) {
-        final ev = dataService.allEvents.firstWhere((x) => x.id == id, orElse: () => Event(
+        final ev = dataService.allEvents.firstWhere((x) => x.id == id, orElse: () => const Event(
           id: '', title: 'Event Not Found', date: '', time: '', location: '',
           category: '', organizer: '', description: '', status: ''
         ));
@@ -103,13 +106,14 @@ class EventDetailScreen extends StatelessWidget {
               InfoRow(label: 'Location', value: ev.location),
               InfoRow(label: 'Organizer', value: ev.organizer),
               InfoRow(label: 'Category', value: ev.category),
+              InfoRow(label: 'Status', value: ev.status),
               const Divider(height: 20),
               Text(ev.description, style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary, height: 1.7)),
             ]))),
             const SizedBox(height: 6),
-            GradientButton(label: '📅 Add to Calendar', onPressed: () => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('Added to calendar ✓')))),
+            GradientButton(label: '📅 Add to Calendar', onPressed: () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Added to calendar ✓')))),
             const SizedBox(height: 10),
-            OutlineBtn(label: '🔔 Remind Me', onPressed: () => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('Reminder set!')))),
+            OutlineBtn(label: '🔔 Remind Me', onPressed: () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Reminder set!')))),
           ])),
         );
       },
@@ -164,6 +168,72 @@ class AdminEventsListScreen extends StatefulWidget {
 
 class _AdminEventsListScreenState extends State<AdminEventsListScreen> {
   bool _showPending = true;
+
+  void _showSendNoticeDialog(BuildContext context, DataService dataService, Event ev) {
+    final noticeCtrl = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Send Notice to Host', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Event: ${ev.title}', style: const TextStyle(fontSize: 13, color: AppTheme.textMuted)),
+            const SizedBox(height: 12),
+            TextField(
+              controller: noticeCtrl,
+              maxLines: 3,
+              decoration: const InputDecoration(
+                labelText: 'Notice message',
+                hintText: 'Enter message for the event host...',
+                alignLabelWithHint: true,
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(dialogCtx).pop(), child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.red),
+            onPressed: () {
+              if (noticeCtrl.text.trim().isNotEmpty) {
+                dataService.sendEventNotice(ev.id, noticeCtrl.text.trim());
+                Navigator.of(dialogCtx).pop();
+                _toast(context, 'Notice sent to host');
+              }
+            },
+            child: const Text('Send', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showDeleteConfirmation(BuildContext context, DataService dataService, Event ev) {
+    showDialog(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Delete Event', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+        content: Text('Are you sure you want to delete "${ev.title}"? This action cannot be undone.', style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary)),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(dialogCtx).pop(), child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.danger),
+            onPressed: () {
+              dataService.deleteEvent(ev.id);
+              Navigator.of(dialogCtx).pop();
+              _toast(context, 'Event deleted');
+            },
+            child: const Text('Delete', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -228,6 +298,10 @@ class _AdminEventsListScreenState extends State<AdminEventsListScreen> {
                           Text(ev.title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
                           const SizedBox(height: 4),
                           Text('${ev.category} · ${fmtDate(ev.date)}', style: const TextStyle(fontSize: 12, color: AppTheme.textMuted)),
+                          if (ev.organizer.isNotEmpty) ...[
+                            const SizedBox(height: 2),
+                            Text('By: ${ev.organizer}', style: const TextStyle(fontSize: 11, color: AppTheme.textMuted)),
+                          ],
                           const SizedBox(height: 10),
                           Row(children: [
                             Expanded(child: OutlineBtn(label: 'Reject', onPressed: () {
@@ -245,12 +319,78 @@ class _AdminEventsListScreenState extends State<AdminEventsListScreen> {
                     ),
                   ).animate().fadeIn(delay: (i*55).ms).slideY(begin:0.12);
                 } else {
-                  // Show published events
-                  return CardRow(
-                    title: ev.title,
-                    subtitle: '${ev.category} · ${fmtDate(ev.date)}',
-                    status: ev.status,
-                    onTap: () => context.push('/admin/events/editor/${ev.id}'),
+                  // Show published events with action buttons
+                  final isCompleted = ev.status == 'Completed';
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    decoration: BoxDecoration(
+                      color: AppTheme.bgCard,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: AppTheme.red.withOpacity(0.12)),
+                      boxShadow: [BoxShadow(color: AppTheme.red.withOpacity(0.06), blurRadius: 8, offset: const Offset(0, 2))],
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(ev.title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+                                  const SizedBox(height: 4),
+                                  Text('${ev.category} · ${fmtDate(ev.date)} · ${ev.time}', style: const TextStyle(fontSize: 12, color: AppTheme.textMuted)),
+                                  if (ev.organizer.isNotEmpty) ...[
+                                    const SizedBox(height: 2),
+                                    Text('By: ${ev.organizer}', style: const TextStyle(fontSize: 11, color: AppTheme.textMuted)),
+                                  ],
+                                ],
+                              )),
+                              const SizedBox(width: 8),
+                              StatusBadge(ev.status),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          // Action buttons row
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: [
+                              if (!isCompleted)
+                                _ActionChip(
+                                  icon: Icons.check_circle_outline_rounded,
+                                  label: 'Complete',
+                                  color: const Color(0xFF2E7D32),
+                                  onTap: () {
+                                    dataService.markEventCompleted(ev.id);
+                                    _toast(ctx, 'Event marked as completed');
+                                  },
+                                ),
+                              _ActionChip(
+                                icon: Icons.mail_outline_rounded,
+                                label: 'Notice',
+                                color: AppTheme.red,
+                                onTap: () => _showSendNoticeDialog(ctx, dataService, ev),
+                              ),
+                              _ActionChip(
+                                icon: Icons.edit_outlined,
+                                label: 'Edit',
+                                color: const Color(0xFF1565C0),
+                                onTap: () => context.push('/admin/events/editor/${ev.id}'),
+                              ),
+                              _ActionChip(
+                                icon: Icons.delete_outline_rounded,
+                                label: 'Delete',
+                                color: AppTheme.danger,
+                                onTap: () => _showDeleteConfirmation(ctx, dataService, ev),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
                   ).animate().fadeIn(delay: (i*55).ms).slideY(begin:0.12);
                 }
               })),
@@ -277,8 +417,10 @@ class _AdminEventEditorScreenState extends State<AdminEventEditorScreen> {
   late TextEditingController _timeCtrl;
   late TextEditingController _locCtrl;
   late TextEditingController _orgCtrl;
+  late TextEditingController _noticeCtrl;
   String _category = 'Academic';
   String _status = 'Draft';
+  bool _loaded = false;
 
   @override
   void initState() {
@@ -289,6 +431,7 @@ class _AdminEventEditorScreenState extends State<AdminEventEditorScreen> {
     _timeCtrl = TextEditingController();
     _locCtrl = TextEditingController();
     _orgCtrl = TextEditingController();
+    _noticeCtrl = TextEditingController();
   }
 
   @override
@@ -299,7 +442,32 @@ class _AdminEventEditorScreenState extends State<AdminEventEditorScreen> {
     _timeCtrl.dispose();
     _locCtrl.dispose();
     _orgCtrl.dispose();
+    _noticeCtrl.dispose();
     super.dispose();
+  }
+
+  void _confirmDelete(BuildContext context, DataService dataService, Event ev) {
+    showDialog(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Delete Event', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+        content: Text('Are you sure you want to delete "${ev.title}"? This action cannot be undone.', style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary)),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(dialogCtx).pop(), child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.danger),
+            onPressed: () {
+              dataService.deleteEvent(ev.id);
+              Navigator.of(dialogCtx).pop();
+              _toast(context, 'Event deleted');
+              context.pop(); // Go back to list
+            },
+            child: const Text('Delete', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -307,13 +475,14 @@ class _AdminEventEditorScreenState extends State<AdminEventEditorScreen> {
     return Consumer<DataService>(
       builder: (context, dataService, child) {
         final ev = widget.id != null
-          ? dataService.allEvents.firstWhere((x) => x.id == widget.id, orElse: () => Event(
+          ? dataService.allEvents.firstWhere((x) => x.id == widget.id, orElse: () => const Event(
               id: '', title: '', date: '', time: '', location: '',
               category: '', organizer: '', description: '', status: ''
             ))
           : null;
 
-        if (ev != null && _titleCtrl.text.isEmpty) {
+        // Load event data into controllers only once
+        if (ev != null && !_loaded && ev.id.isNotEmpty) {
           _titleCtrl.text = ev.title;
           _descCtrl.text = ev.description;
           _dateCtrl.text = ev.date;
@@ -322,12 +491,38 @@ class _AdminEventEditorScreenState extends State<AdminEventEditorScreen> {
           _orgCtrl.text = ev.organizer;
           _category = ev.category;
           _status = ev.status;
+          _loaded = true;
         }
 
+        final isEditing = ev != null && ev.id.isNotEmpty;
+
         return Scaffold(
-          appBar: _appBar(ev != null ? 'Edit Event' : 'Create Event', context),
+          appBar: _appBar(isEditing ? 'Edit Event' : 'Create Event', context),
           body: SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(children: [
             const AdminBar(), const SizedBox(height: 10),
+
+            // Status indicator for existing events
+            if (isEditing) ...[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                margin: const EdgeInsets.only(bottom: 14),
+                decoration: BoxDecoration(
+                  color: AppTheme.bgCard,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppTheme.red.withOpacity(0.12)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.info_outline_rounded, size: 16, color: AppTheme.textMuted),
+                    const SizedBox(width: 8),
+                    Text('Current status: ', style: const TextStyle(fontSize: 12, color: AppTheme.textMuted)),
+                    StatusBadge(ev!.status),
+                  ],
+                ),
+              ),
+            ],
+
             TextFormField(controller: _titleCtrl, decoration: const InputDecoration(labelText: 'Title')),
             const SizedBox(height: 12),
             TextFormField(controller: _descCtrl, maxLines: 4, decoration: const InputDecoration(labelText: 'Description', alignLabelWithHint: true)),
@@ -348,27 +543,98 @@ class _AdminEventEditorScreenState extends State<AdminEventEditorScreen> {
             TextFormField(controller: _locCtrl, decoration: const InputDecoration(labelText: 'Location')),
             const SizedBox(height: 12),
             TextFormField(controller: _orgCtrl, decoration: const InputDecoration(labelText: 'Organizer')),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              value: _status,
-              decoration: const InputDecoration(labelText: 'Status'),
-              items: ['Draft','Under Review','Published','Archived'].map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
-              onChanged: (val) => setState(() => _status = val ?? _status),
-            ),
             const SizedBox(height: 18),
-            GradientButton(
-              label: 'Publish',
-              onPressed: () {
-                if (_titleCtrl.text.isNotEmpty) {
-                  _toast(context, 'Event published');
-                }
-              },
-            ),
-            const SizedBox(height: 10),
-            OutlineBtn(label: 'Save as Draft', onPressed: () => _toast(context, 'Saved as draft')),
-            if (ev != null) ...[
+
+            // ── Primary Actions ─────────────────────────────────
+            if (isEditing) ...[
+              // Publish / Update Status button
+              GradientButton(
+                label: ev.status == 'Published' ? 'Update Event' : 'Publish Event',
+                onPressed: () {
+                  if (_titleCtrl.text.isNotEmpty) {
+                    dataService.updateEventStatus(ev.id, 'Published');
+                    _toast(context, 'Event published');
+                  } else {
+                    _toast(context, 'Title is required');
+                  }
+                },
+              ),
               const SizedBox(height: 10),
-              OutlineBtn(label: 'Archive', color: AppTheme.danger, onPressed: () => _toast(context, 'Event archived'))
+
+              // Mark Completed button (only if not already completed)
+              if (ev.status != 'Completed')
+                OutlineBtn(
+                  label: 'Mark as Completed',
+                  color: const Color(0xFF2E7D32),
+                  onPressed: () {
+                    dataService.markEventCompleted(ev.id);
+                    _toast(context, 'Event marked as completed');
+                  },
+                ),
+              if (ev.status != 'Completed')
+                const SizedBox(height: 10),
+
+              // Send Notice to Host
+              const SectionLabel('Send Notice to Host'),
+              TextFormField(
+                controller: _noticeCtrl,
+                maxLines: 2,
+                decoration: const InputDecoration(
+                  labelText: 'Notice message',
+                  hintText: 'Type a message to send to the event host...',
+                  alignLabelWithHint: true,
+                ),
+              ),
+              const SizedBox(height: 10),
+              OutlineBtn(
+                label: 'Send Notice',
+                color: AppTheme.red,
+                onPressed: () {
+                  if (_noticeCtrl.text.trim().isNotEmpty) {
+                    dataService.sendEventNotice(ev.id, _noticeCtrl.text.trim());
+                    _toast(context, 'Notice sent to event host');
+                    _noticeCtrl.clear();
+                  } else {
+                    _toast(context, 'Please enter a notice message');
+                  }
+                },
+              ),
+              const SizedBox(height: 16),
+
+              // Delete Event (destructive)
+              OutlineBtn(
+                label: 'Delete Event',
+                color: AppTheme.danger,
+                onPressed: () => _confirmDelete(context, dataService, ev),
+              ),
+            ] else ...[
+              // Creating a new event
+              GradientButton(
+                label: 'Publish',
+                onPressed: () {
+                  if (_titleCtrl.text.isNotEmpty) {
+                    final newEvent = Event(
+                      id: 'EV-${DateTime.now().millisecondsSinceEpoch}',
+                      title: _titleCtrl.text,
+                      category: _category,
+                      date: _dateCtrl.text,
+                      time: _timeCtrl.text,
+                      location: _locCtrl.text,
+                      organizer: _orgCtrl.text,
+                      description: _descCtrl.text,
+                      status: 'Published',
+                    );
+                    dataService.createEvent(newEvent);
+                    dataService.approveEvent(newEvent.id);
+                    _toast(context, 'Event published');
+                    context.pop();
+                  } else {
+                    _toast(context, 'Title is required');
+                  }
+                },
+              ),
+              const SizedBox(height: 10),
+              OutlineBtn(label: 'Save as Draft', onPressed: () => _toast(context, 'Saved as draft')),
             ],
           ])),
         );
@@ -522,4 +788,34 @@ class _TL extends StatelessWidget {
     const SizedBox(width: 12),
     Expanded(child: Text(text, style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary))),
   ]));
+}
+
+class _ActionChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+  final VoidCallback onTap;
+  const _ActionChip({required this.icon, required this.label, required this.color, required this.onTap});
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: color.withOpacity(0.3)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 14, color: color),
+            const SizedBox(width: 4),
+            Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: color)),
+          ],
+        ),
+      ),
+    );
+  }
 }

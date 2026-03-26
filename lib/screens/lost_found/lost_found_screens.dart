@@ -126,7 +126,23 @@ class _ReportFoundState extends State<ReportFoundScreen> {
         _Drop(label: 'Where Found', value: _loc, items: _locs, onChanged: (v) => setState(() => _loc = v)),
         _PhotoBox(),
         const SizedBox(height: 16),
-        GradientButton(label: 'Submit Report', onPressed: () => setState(() => _done = true)),
+        GradientButton(label: 'Submit Report', onPressed: () {
+          if (_cat != null && _loc != null && _descC.text.isNotEmpty) {
+            final dataService = context.read<DataService>();
+            final newReport = FoundReport(
+              id: 'FR-${DateTime.now().millisecondsSinceEpoch}',
+              description: _descC.text,
+              category: _cat!,
+              whereFound: _loc!,
+              whenFound: DateTime.now().toString().split(' ')[0],
+              status: 'In Inventory',
+            );
+            dataService.addFoundReport(newReport);
+            setState(() => _done = true);
+          } else {
+            _toast(context, 'Please fill all fields');
+          }
+        }),
         const SizedBox(height: 10),
         OutlineBtn(label: 'Cancel', onPressed: () => context.pop()),
       ])),
@@ -172,7 +188,13 @@ class MyFoundReportsScreen extends StatelessWidget {
               ? const EmptyState(title: 'No Found Reports', icon: Icons.upload_file_rounded)
               : ListView.builder(padding: const EdgeInsets.all(16), itemCount: data.length, itemBuilder: (ctx, i) {
                   final r = data[i];
-                  return CardRow(title: r.description, subtitle: '${r.category} · ${r.whereFound}', extra: relativeTime(r.whenFound), status: r.status, onTap: () => context.push('/lost-found/found/${r.id}')).animate().fadeIn(delay: (i*60).ms).slideY(begin: 0.15);
+                  return CardRow(
+                    title: r.description,
+                    subtitle: '${r.category} · ${r.whereFound}${r.handoverStatus != null ? ' · ${r.handoverStatus}' : ''}',
+                    extra: relativeTime(r.whenFound),
+                    status: r.status,
+                    onTap: () => context.push('/lost-found/found/${r.id}'),
+                  ).animate().fadeIn(delay: (i*60).ms).slideY(begin: 0.15);
                 }),
         );
       },
@@ -186,45 +208,167 @@ class LostDetailScreen extends StatelessWidget {
   const LostDetailScreen({super.key, required this.id});
   @override
   Widget build(BuildContext context) {
-    final r = MockData.myLostReports.firstWhere((x) => x.id == id, orElse: () => MockData.myLostReports.first);
-    return Scaffold(
-      appBar: _gradientAppBar(r.id, context),
-      body: SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        if (r.matchStatus != null) NoticeBox(message: r.matchStatus!, borderColor: AppTheme.red, icon: Icons.link_rounded),
-        Card(child: Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [Expanded(child: Text(r.title, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800))), StatusBadge(r.status)]),
-          const Divider(height: 20),
-          InfoRow(label: 'Category', value: r.category),
-          InfoRow(label: 'Where Lost', value: r.whereLost),
-          InfoRow(label: 'When Lost', value: fmtDate(r.whenLost)),
-          const Divider(height: 12),
-          const Text('Description', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppTheme.textMuted)),
-          const SizedBox(height: 8),
-          Text(r.description, style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary, height: 1.65)),
-        ]))),
-        const SizedBox(height: 10),
-        if (r.status == 'Active') OutlineBtn(label: 'Close Report', color: AppTheme.danger, onPressed: () => _toast(context, 'Report closed')),
-      ])),
+    return Consumer<DataService>(
+      builder: (context, dataService, child) {
+        final r = dataService.myLostReports.firstWhere((x) => x.id == id, orElse: () => dataService.myLostReports.first);
+        return Scaffold(
+          appBar: _gradientAppBar(r.id, context),
+          body: SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            if (r.matchStatus != null) NoticeBox(message: r.matchStatus!, borderColor: AppTheme.red, icon: Icons.link_rounded),
+            Card(child: Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [Expanded(child: Text(r.title, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800))), StatusBadge(r.status)]),
+              const Divider(height: 20),
+              InfoRow(label: 'Category', value: r.category),
+              InfoRow(label: 'Where Lost', value: r.whereLost),
+              InfoRow(label: 'When Lost', value: fmtDate(r.whenLost)),
+              const Divider(height: 12),
+              const Text('Description', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppTheme.textMuted)),
+              const SizedBox(height: 8),
+              Text(r.description, style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary, height: 1.65)),
+            ]))),
+            const SizedBox(height: 10),
+            if (r.status == 'Active') OutlineBtn(label: 'Close Report', color: AppTheme.danger, onPressed: () {
+              dataService.updateLostReportStatus(r.id, 'Closed');
+              _toast(context, 'Report closed');
+              context.pop();
+            }),
+          ])),
+        );
+      },
     );
   }
 }
 
 // ── Screen 7: Found Detail (Student) ────────────────────────────
-class FoundDetailScreen extends StatelessWidget {
+class FoundDetailScreen extends StatefulWidget {
   final String id;
   const FoundDetailScreen({super.key, required this.id});
   @override
+  State<FoundDetailScreen> createState() => _FoundDetailScreenState();
+}
+
+class _FoundDetailScreenState extends State<FoundDetailScreen> {
+  final _qrController = TextEditingController();
+
+  @override
+  void dispose() {
+    _qrController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final r = MockData.myFoundReports.firstWhere((x) => x.id == id, orElse: () => MockData.myFoundReports.first);
-    return Scaffold(
-      appBar: _gradientAppBar(r.id, context),
-      body: Padding(padding: const EdgeInsets.all(16), child: Card(child: Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [Expanded(child: Text(r.description, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800))), StatusBadge(r.status)]),
-        const Divider(height: 20),
-        InfoRow(label: 'Category', value: r.category),
-        InfoRow(label: 'Where Found', value: r.whereFound),
-        InfoRow(label: 'When Found', value: fmtDate(r.whenFound)),
-      ])))),
+    return Consumer<DataService>(
+      builder: (context, dataService, child) {
+        final r = dataService.myFoundReports.firstWhere((x) => x.id == widget.id, orElse: () => dataService.myFoundReports.first);
+        return Scaffold(
+          appBar: _gradientAppBar(r.id, context),
+          body: SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Card(child: Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [Expanded(child: Text(r.description, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800))), StatusBadge(r.status)]),
+              const Divider(height: 20),
+              InfoRow(label: 'Category', value: r.category),
+              InfoRow(label: 'Where Found', value: r.whereFound),
+              InfoRow(label: 'When Found', value: fmtDate(r.whenFound)),
+              if (r.handoverStatus != null) ...[
+                const Divider(height: 16),
+                InfoRow(label: 'Handover Status', value: r.handoverStatus!),
+              ],
+              if (r.qrScanned) ...[
+                const SizedBox(height: 8),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.green.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.green.withOpacity(0.3)),
+                  ),
+                  child: const Row(children: [
+                    Icon(Icons.check_circle_rounded, color: Colors.green, size: 18),
+                    SizedBox(width: 8),
+                    Expanded(child: Text('QR Code verified - Item handover confirmed', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.green))),
+                  ]),
+                ),
+              ],
+            ]))),
+
+            // QR Scan section - shown when handover is pending (QR generated by admin but not yet scanned)
+            if (r.qrCode != null && !r.qrScanned) ...[
+              const SectionLabel('Scan QR Code'),
+              Card(child: Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const NoticeBox(
+                  message: 'The admin has generated a QR code for item handover. Enter the code below to confirm you have handed over the item.',
+                  icon: Icons.qr_code_scanner_rounded,
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _qrController,
+                  decoration: InputDecoration(
+                    hintText: 'Enter QR code here...',
+                    prefixIcon: const Icon(Icons.qr_code_rounded, color: AppTheme.red),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AppTheme.red.withOpacity(0.3))),
+                    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppTheme.red, width: 2)),
+                  ),
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, letterSpacing: 1),
+                ),
+                const SizedBox(height: 14),
+                GradientButton(
+                  label: 'Verify & Confirm Handover',
+                  onPressed: () {
+                    final code = _qrController.text.trim();
+                    if (code.isEmpty) {
+                      _toast(context, 'Please enter the QR code');
+                      return;
+                    }
+                    final success = dataService.scanReceiveQR(r.id, code);
+                    if (success) {
+                      _qrController.clear();
+                      _showHandoverSuccessDialog(context);
+                    } else {
+                      _toast(context, 'Invalid QR code. Please check and try again.');
+                    }
+                  },
+                ),
+              ]))),
+            ],
+
+            // Show info when no QR generated yet
+            if (r.qrCode == null && !r.qrScanned && r.status == 'In Inventory') ...[
+              const SizedBox(height: 10),
+              const NoticeBox(
+                message: 'Please hand the item to the Lost & Found Office (Block A, Level 1). The admin will generate a QR code for you to scan as proof of handover.',
+                icon: Icons.info_outline_rounded,
+              ),
+            ],
+          ])),
+        );
+      },
+    );
+  }
+
+  void _showHandoverSuccessDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(children: [
+          const Icon(Icons.check_circle_rounded, color: Colors.green, size: 28),
+          const SizedBox(width: 10),
+          const Text('Done!', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+        ]),
+        content: const Column(mainAxisSize: MainAxisSize.min, children: [
+          Text('Item handover has been confirmed successfully.\n\nThank you for handing over the found item. You can track the progress in "My Found Reports".', style: TextStyle(fontSize: 13, color: AppTheme.textSecondary, height: 1.55)),
+        ]),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('OK', style: TextStyle(color: AppTheme.red, fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -234,28 +378,41 @@ class NotificationsScreen extends StatelessWidget {
   const NotificationsScreen({super.key});
   @override
   Widget build(BuildContext context) {
-    const ns = MockData.notifications;
-    return Scaffold(
-      appBar: _gradientAppBar('Notifications', context),
-      body: ListView.builder(padding: const EdgeInsets.all(16), itemCount: ns.length, itemBuilder: (ctx, i) {
-        final n = ns[i];
-        return Container(
-          margin: const EdgeInsets.only(bottom: 10),
-          decoration: BoxDecoration(
-            color: n.read ? AppTheme.bgCard : AppTheme.red.withOpacity(0.05),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: n.read ? AppTheme.red.withOpacity(0.1) : AppTheme.red.withOpacity(0.25)),
-          ),
-          child: ListTile(
-            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-            leading: CircleAvatar(backgroundColor: n.type == 'personal' ? AppTheme.red.withOpacity(0.12) : AppTheme.gold.withOpacity(0.2),
-                child: Icon(n.type == 'personal' ? Icons.person_rounded : Icons.campaign_rounded, color: n.type == 'personal' ? AppTheme.red : AppTheme.goldDark, size: 20)),
-            title: Text(n.text, style: TextStyle(fontSize: 13, fontWeight: n.read ? FontWeight.w500 : FontWeight.w700, color: AppTheme.textPrimary)),
-            subtitle: Text(n.time, style: const TextStyle(fontSize: 11, color: AppTheme.textMuted)),
-            trailing: n.read ? null : Container(width: 8, height: 8, decoration: const BoxDecoration(color: AppTheme.red, shape: BoxShape.circle)),
-          ),
-        ).animate().fadeIn(delay: (i*55).ms).slideX(begin: 0.1);
-      }),
+    return Consumer<DataService>(
+      builder: (context, dataService, child) {
+        final ns = dataService.notifications;
+        return Scaffold(
+          appBar: _gradientAppBar('Notifications', context),
+          body: ns.isEmpty
+              ? const EmptyState(title: 'No Notifications', icon: Icons.notifications_off_rounded)
+              : ListView.builder(padding: const EdgeInsets.all(16), itemCount: ns.length, itemBuilder: (ctx, i) {
+                  final n = ns[i];
+                  return GestureDetector(
+                    onTap: () {
+                      if (!n.read) {
+                        dataService.markNotificationAsRead(n.id);
+                      }
+                    },
+                    child: Container(
+                      margin: const EdgeInsets.only(bottom: 10),
+                      decoration: BoxDecoration(
+                        color: n.read ? AppTheme.bgCard : AppTheme.red.withOpacity(0.05),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: n.read ? AppTheme.red.withOpacity(0.1) : AppTheme.red.withOpacity(0.25)),
+                      ),
+                      child: ListTile(
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                        leading: CircleAvatar(backgroundColor: n.type == 'personal' ? AppTheme.red.withOpacity(0.12) : AppTheme.gold.withOpacity(0.2),
+                            child: Icon(n.type == 'personal' ? Icons.person_rounded : Icons.campaign_rounded, color: n.type == 'personal' ? AppTheme.red : AppTheme.goldDark, size: 20)),
+                        title: Text(n.text, style: TextStyle(fontSize: 13, fontWeight: n.read ? FontWeight.w500 : FontWeight.w700, color: AppTheme.textPrimary)),
+                        subtitle: Text(n.time, style: const TextStyle(fontSize: 11, color: AppTheme.textMuted)),
+                        trailing: n.read ? null : Container(width: 8, height: 8, decoration: const BoxDecoration(color: AppTheme.red, shape: BoxShape.circle)),
+                      ),
+                    ),
+                  ).animate().fadeIn(delay: (i*55).ms).slideX(begin: 0.1);
+                }),
+        );
+      },
     );
   }
 }
@@ -265,23 +422,29 @@ class AdminLFDashboardScreen extends StatelessWidget {
   const AdminLFDashboardScreen({super.key});
   @override
   Widget build(BuildContext context) {
-    final active = MockData.allLostReports.where((r) => r.status == 'Active').length;
-    final pending = MockData.matches.where((m) => m.status == 'Pending').length;
-    return Scaffold(
-      body: SafeArea(child: SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const AdminBar(), const SizedBox(height: 10),
-        Row(children: [
-          Expanded(child: StatCard(value: '$active', label: 'Active Lost')),
-          const SizedBox(width: 10),
-          Expanded(child: StatCard(value: '${MockData.myFoundReports.length}', label: 'In Inventory', valueColor: AppTheme.redDark, bgColor: AppTheme.red.withOpacity(0.07))),
-          const SizedBox(width: 10),
-          Expanded(child: StatCard(value: '$pending', label: 'Pending Matches', valueColor: const Color(0xFFB03030), bgColor: const Color(0x08D65E5E))),
-        ]).animate().fadeIn(delay: 50.ms),
-        const SectionLabel('Quick Actions'),
-        HubButton(icon: Icons.list_alt_rounded, label: 'View Lost Reports', subtitle: '${MockData.allLostReports.length} total', onTap: () => context.push('/admin/lost-found/lost-list')).animate().fadeIn(delay:100.ms),
-        HubButton(icon: Icons.inventory_rounded, label: 'Found / Inventory', subtitle: '${MockData.myFoundReports.length} items', isAmber: true, onTap: () => context.push('/admin/lost-found/found-list')).animate().fadeIn(delay:150.ms),
-        HubButton(icon: Icons.compare_arrows_rounded, label: 'Review Matches', subtitle: '$pending pending', onTap: () => context.push('/admin/lost-found/match-list')).animate().fadeIn(delay:200.ms),
-      ]))),
+    return Consumer<DataService>(
+      builder: (context, dataService, child) {
+        final active = dataService.allLostReports.where((r) => r.status == 'Active').length;
+        final pending = dataService.matches.where((m) => m.status == 'Pending').length;
+        return Scaffold(
+          body: SafeArea(child: SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const AdminBar(), const SizedBox(height: 10),
+            Row(children: [
+              Expanded(child: StatCard(value: '$active', label: 'Active Lost')),
+              const SizedBox(width: 10),
+              Expanded(child: StatCard(value: '${dataService.myFoundReports.length}', label: 'In Inventory', valueColor: AppTheme.redDark, bgColor: AppTheme.red.withOpacity(0.07))),
+              const SizedBox(width: 10),
+              Expanded(child: StatCard(value: '$pending', label: 'Pending Matches', valueColor: const Color(0xFFB03030), bgColor: const Color(0x08D65E5E))),
+            ]).animate().fadeIn(delay: 50.ms),
+            const SectionLabel('Quick Actions'),
+            HubButton(icon: Icons.list_alt_rounded, label: 'View Lost Reports', subtitle: '${dataService.allLostReports.length} total', onTap: () => context.push('/admin/lost-found/lost-list')).animate().fadeIn(delay:100.ms),
+            HubButton(icon: Icons.inventory_rounded, label: 'Found / Inventory', subtitle: '${dataService.myFoundReports.length} items', isAmber: true, onTap: () => context.push('/admin/lost-found/found-list')).animate().fadeIn(delay:150.ms),
+            HubButton(icon: Icons.compare_arrows_rounded, label: 'Review Matches', subtitle: '$pending pending', onTap: () => context.push('/admin/lost-found/match-list')).animate().fadeIn(delay:200.ms),
+            const SectionLabel('Admin Tools'),
+            HubButton(icon: Icons.person_add_rounded, label: 'Student Registrations', subtitle: '${dataService.pendingRegistrations.where((r) => r.status == "Pending").length} pending approval', onTap: () => context.push('/admin/registrations')).animate().fadeIn(delay:250.ms),
+          ]))),
+        );
+      },
     );
   }
 }
@@ -291,22 +454,28 @@ class AdminLostListScreen extends StatelessWidget {
   const AdminLostListScreen({super.key});
   @override
   Widget build(BuildContext context) {
-    const data = MockData.allLostReports;
-    return Scaffold(
-      appBar: _gradientAppBar('All Lost Reports', context),
-      body: Column(children: [
-        const Padding(padding: EdgeInsets.fromLTRB(16,8,16,0), child: AdminBar()),
-        Expanded(child: ListView.builder(padding: const EdgeInsets.all(16), itemCount: data.length, itemBuilder: (ctx, i) {
-          final r = data[i];
-          return CardRow(
-            title: r.title, subtitle: '${r.studentId} · ${r.category}', extra: fmtDate(r.createdDate), status: r.status,
-            trailing: r.aiScore != null ? Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(gradient: AppTheme.primaryGradient, borderRadius: BorderRadius.circular(999)),
-                child: Text('AI ${r.aiScore}%', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Colors.white))) : null,
-            onTap: () => context.push('/admin/lost-found/lost/${r.id}'),
-          ).animate().fadeIn(delay: (i*55).ms).slideY(begin: 0.12);
-        })),
-      ]),
+    return Consumer<DataService>(
+      builder: (context, dataService, child) {
+        final data = dataService.allLostReports;
+        return Scaffold(
+          appBar: _gradientAppBar('All Lost Reports', context),
+          body: Column(children: [
+            const Padding(padding: EdgeInsets.fromLTRB(16,8,16,0), child: AdminBar()),
+            Expanded(child: data.isEmpty
+                ? const EmptyState(title: 'No Lost Reports', icon: Icons.search_off_rounded)
+                : ListView.builder(padding: const EdgeInsets.all(16), itemCount: data.length, itemBuilder: (ctx, i) {
+                    final r = data[i];
+                    return CardRow(
+                      title: r.title, subtitle: '${r.studentId} · ${r.category}', extra: fmtDate(r.createdDate), status: r.status,
+                      trailing: r.aiScore != null ? Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(gradient: AppTheme.primaryGradient, borderRadius: BorderRadius.circular(999)),
+                          child: Text('AI ${r.aiScore}%', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Colors.white))) : null,
+                      onTap: () => context.push('/admin/lost-found/lost/${r.id}'),
+                    ).animate().fadeIn(delay: (i*55).ms).slideY(begin: 0.12);
+                  })),
+          ]),
+        );
+      },
     );
   }
 }
@@ -316,16 +485,22 @@ class AdminFoundListScreen extends StatelessWidget {
   const AdminFoundListScreen({super.key});
   @override
   Widget build(BuildContext context) {
-    const data = MockData.myFoundReports;
-    return Scaffold(
-      appBar: _gradientAppBar('Found / Inventory', context),
-      body: Column(children: [
-        const Padding(padding: EdgeInsets.fromLTRB(16,8,16,0), child: AdminBar()),
-        Expanded(child: ListView.builder(padding: const EdgeInsets.all(16), itemCount: data.length, itemBuilder: (ctx, i) {
-          final r = data[i];
-          return CardRow(title: r.description, subtitle: '${r.category} · ${r.whereFound}', extra: fmtDate(r.whenFound), status: r.status, onTap: () => context.push('/admin/lost-found/found/${r.id}')).animate().fadeIn(delay: (i*55).ms);
-        })),
-      ]),
+    return Consumer<DataService>(
+      builder: (context, dataService, child) {
+        final data = dataService.myFoundReports;
+        return Scaffold(
+          appBar: _gradientAppBar('Found / Inventory', context),
+          body: Column(children: [
+            const Padding(padding: EdgeInsets.fromLTRB(16,8,16,0), child: AdminBar()),
+            Expanded(child: data.isEmpty
+                ? const EmptyState(title: 'No Found Reports', icon: Icons.inventory_rounded)
+                : ListView.builder(padding: const EdgeInsets.all(16), itemCount: data.length, itemBuilder: (ctx, i) {
+                    final r = data[i];
+                    return CardRow(title: r.description, subtitle: '${r.category} · ${r.whereFound}', extra: fmtDate(r.whenFound), status: r.status, onTap: () => context.push('/admin/lost-found/found/${r.id}')).animate().fadeIn(delay: (i*55).ms);
+                  })),
+          ]),
+        );
+      },
     );
   }
 }
@@ -336,36 +511,44 @@ class AdminLostDetailScreen extends StatelessWidget {
   const AdminLostDetailScreen({super.key, required this.id});
   @override
   Widget build(BuildContext context) {
-    final r = MockData.allLostReports.firstWhere((x) => x.id == id, orElse: () => MockData.allLostReports.first);
-    final matches = MockData.matches.where((m) => m.lostId == r.id).toList();
-    return Scaffold(
-      appBar: _gradientAppBar(r.id, context),
-      body: SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const AdminBar(), const SizedBox(height: 8),
-        Card(child: Padding(padding: const EdgeInsets.all(16), child: Column(children: [
-          Row(children: [Expanded(child: Text(r.title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800))), StatusBadge(r.status)]),
-          const Divider(height: 18),
-          InfoRow(label: 'Student ID', value: r.studentId),
-          InfoRow(label: 'Category', value: r.category),
-          InfoRow(label: 'Where Lost', value: r.whereLost),
-          InfoRow(label: 'Submitted', value: fmtDate(r.createdDate)),
-        ]))),
-        if (r.aiScore != null) ...[
-          const SectionLabel('AI Match Score'),
-          Container(padding: const EdgeInsets.all(14), decoration: BoxDecoration(gradient: LinearGradient(colors: [AppTheme.red.withOpacity(0.08), AppTheme.redLight.withOpacity(0.06)]), borderRadius: BorderRadius.circular(14), border: Border.all(color: AppTheme.red.withOpacity(0.2))),
-              child: Row(children: [const Icon(Icons.psychology_rounded, color: AppTheme.red, size: 28), const SizedBox(width: 12),
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  const Text('AI Confidence', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppTheme.red)),
-                  Text('${r.aiScore}% match with ${r.matchedFoundId ?? "found item"}', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800)),
-                ])])),
-        ],
-        if (matches.isNotEmpty) ...[
-          const SectionLabel('Potential Matches'),
-          ...matches.map((m) => Card(child: ListTile(title: Text('Found: ${m.foundId}', style: const TextStyle(fontWeight: FontWeight.w700)), subtitle: Text(m.notes), trailing: StatusBadge(m.status), onTap: () => context.push('/admin/lost-found/match/${m.id}')))),
-        ],
-        const SizedBox(height: 10),
-        GradientButton(label: 'Mark as Resolved', onPressed: () => _toast(context, 'Status updated')),
-      ])),
+    return Consumer<DataService>(
+      builder: (context, dataService, child) {
+        final r = dataService.allLostReports.firstWhere((x) => x.id == id, orElse: () => dataService.allLostReports.first);
+        final matchList = dataService.matches.where((m) => m.lostId == r.id).toList();
+        return Scaffold(
+          appBar: _gradientAppBar(r.id, context),
+          body: SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const AdminBar(), const SizedBox(height: 8),
+            Card(child: Padding(padding: const EdgeInsets.all(16), child: Column(children: [
+              Row(children: [Expanded(child: Text(r.title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800))), StatusBadge(r.status)]),
+              const Divider(height: 18),
+              InfoRow(label: 'Student ID', value: r.studentId),
+              InfoRow(label: 'Category', value: r.category),
+              InfoRow(label: 'Where Lost', value: r.whereLost),
+              InfoRow(label: 'Submitted', value: fmtDate(r.createdDate)),
+            ]))),
+            if (r.aiScore != null) ...[
+              const SectionLabel('AI Match Score'),
+              Container(padding: const EdgeInsets.all(14), decoration: BoxDecoration(gradient: LinearGradient(colors: [AppTheme.red.withOpacity(0.08), AppTheme.redLight.withOpacity(0.06)]), borderRadius: BorderRadius.circular(14), border: Border.all(color: AppTheme.red.withOpacity(0.2))),
+                  child: Row(children: [const Icon(Icons.psychology_rounded, color: AppTheme.red, size: 28), const SizedBox(width: 12),
+                    Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      const Text('AI Confidence', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppTheme.red)),
+                      Text('${r.aiScore}% match with ${r.matchedFoundId ?? "found item"}', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800)),
+                    ])])),
+            ],
+            if (matchList.isNotEmpty) ...[
+              const SectionLabel('Potential Matches'),
+              ...matchList.map((m) => Card(child: ListTile(title: Text('Found: ${m.foundId}', style: const TextStyle(fontWeight: FontWeight.w700)), subtitle: Text(m.notes), trailing: StatusBadge(m.status), onTap: () => context.push('/admin/lost-found/match/${m.id}')))),
+            ],
+            const SizedBox(height: 10),
+            if (r.status != 'Resolved') GradientButton(label: 'Mark as Resolved', onPressed: () {
+              dataService.updateAdminLostReportStatus(r.id, 'Resolved');
+              _toast(context, 'Status updated to Resolved');
+              context.pop();
+            }),
+          ])),
+        );
+      },
     );
   }
 }
@@ -376,25 +559,153 @@ class AdminFoundDetailScreen extends StatelessWidget {
   const AdminFoundDetailScreen({super.key, required this.id});
   @override
   Widget build(BuildContext context) {
-    final r = MockData.myFoundReports.firstWhere((x) => x.id == id, orElse: () => MockData.myFoundReports.first);
-    return Scaffold(
-      appBar: _gradientAppBar(r.id, context),
-      body: SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(children: [
-        const AdminBar(), const SizedBox(height: 8),
-        Card(child: Padding(padding: const EdgeInsets.all(16), child: Column(children: [
-          Row(children: [Expanded(child: Text(r.description, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800))), StatusBadge(r.status)]),
-          const Divider(height: 18),
-          InfoRow(label: 'Category', value: r.category),
-          InfoRow(label: 'Where Found', value: r.whereFound),
-          InfoRow(label: 'When Found', value: fmtDate(r.whenFound)),
-        ]))),
-        const SizedBox(height: 10),
-        GradientButton(label: 'Mark as Resolved', onPressed: () => _toast(context, 'Marked resolved')),
-        const SizedBox(height: 10),
-        OutlineBtn(label: 'Archive', onPressed: () => _toast(context, 'Archived')),
-      ])),
+    return Consumer<DataService>(
+      builder: (context, dataService, child) {
+        final r = dataService.myFoundReports.firstWhere((x) => x.id == id, orElse: () => dataService.myFoundReports.first);
+        return Scaffold(
+          appBar: _gradientAppBar(r.id, context),
+          body: SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(children: [
+            const AdminBar(), const SizedBox(height: 8),
+            Card(child: Padding(padding: const EdgeInsets.all(16), child: Column(children: [
+              Row(children: [Expanded(child: Text(r.description, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800))), StatusBadge(r.status)]),
+              const Divider(height: 18),
+              InfoRow(label: 'Category', value: r.category),
+              InfoRow(label: 'Where Found', value: r.whereFound),
+              InfoRow(label: 'When Found', value: fmtDate(r.whenFound)),
+              if (r.handoverStatus != null) ...[
+                const Divider(height: 16),
+                InfoRow(label: 'Handover Status', value: r.handoverStatus!),
+              ],
+              if (r.qrCode != null) ...[
+                const SizedBox(height: 8),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppTheme.red.withOpacity(0.05),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: AppTheme.red.withOpacity(0.2)),
+                  ),
+                  child: Row(children: [
+                    const Icon(Icons.qr_code_rounded, color: AppTheme.red, size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text('QR: ${r.qrCode}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppTheme.textSecondary))),
+                    if (r.qrScanned) const Icon(Icons.check_circle_rounded, color: Colors.green, size: 18),
+                  ]),
+                ),
+              ],
+            ]))),
+            const SizedBox(height: 10),
+            // Action buttons based on current status
+            if (r.status == 'In Inventory') ...[
+              GradientButton(label: 'Receive (Generate QR)', onPressed: () {
+                final code = dataService.generateReceiveQR(r.id);
+                _showQRDialog(context, 'Receive QR Code', code, 'Show this QR code to the student who found the item. They must scan it to confirm handover.');
+              }),
+              const SizedBox(height: 10),
+              GradientButton(label: 'Handover to Claimant', onPressed: () {
+                final code = dataService.generateHandoverQR(r.id);
+                _showQRDialog(context, 'Handover QR Code', code, 'Show this QR code to the claiming student.\n\nPlease also:\n1. Fill in the Google Form for records\n2. Have both parties sign the register book\n\nAfter completion, tap "Complete Handover" to finalize.');
+              }),
+              const SizedBox(height: 10),
+              OutlineBtn(label: 'Mark as Resolved', onPressed: () {
+                dataService.updateFoundReportStatus(r.id, 'Resolved');
+                _toast(context, 'Marked as Resolved');
+                context.pop();
+              }),
+              const SizedBox(height: 10),
+              OutlineBtn(label: 'Archive', color: AppTheme.danger, onPressed: () {
+                dataService.updateFoundReportStatus(r.id, 'Archived');
+                _toast(context, 'Archived');
+                context.pop();
+              }),
+            ],
+            if (r.status == 'Claiming') ...[
+              GradientButton(label: 'Complete Handover', onPressed: () {
+                dataService.completeHandover(r.id);
+                _toast(context, 'Handover completed. Item resolved.');
+                context.pop();
+              }),
+              const SizedBox(height: 10),
+              OutlineBtn(label: 'Cancel Handover', color: AppTheme.danger, onPressed: () {
+                dataService.updateFoundReportStatus(r.id, 'In Inventory');
+                _toast(context, 'Handover cancelled. Item back in inventory.');
+              }),
+            ],
+            if (r.status == 'Received' || r.status == 'Resolved') ...[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Colors.green.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: Colors.green.withOpacity(0.3)),
+                ),
+                child: Row(children: [
+                  const Icon(Icons.check_circle_rounded, color: Colors.green, size: 24),
+                  const SizedBox(width: 10),
+                  Expanded(child: Text(
+                    r.status == 'Resolved' ? 'This item has been resolved and claimed.' : 'This item has been received.',
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.green),
+                  )),
+                ]),
+              ),
+              if (r.status != 'Resolved') ...[
+                const SizedBox(height: 10),
+                OutlineBtn(label: 'Archive', color: AppTheme.danger, onPressed: () {
+                  dataService.updateFoundReportStatus(r.id, 'Archived');
+                  _toast(context, 'Archived');
+                  context.pop();
+                }),
+              ],
+            ],
+          ])),
+        );
+      },
     );
   }
+}
+
+void _showQRDialog(BuildContext context, String title, String code, String message) {
+  showDialog(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      title: Row(children: [
+        const Icon(Icons.qr_code_2_rounded, color: AppTheme.red, size: 28),
+        const SizedBox(width: 10),
+        Expanded(child: Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800))),
+      ]),
+      content: Column(mainAxisSize: MainAxisSize.min, children: [
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(colors: [AppTheme.red.withOpacity(0.08), AppTheme.redLight.withOpacity(0.05)]),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppTheme.red.withOpacity(0.3), width: 2),
+          ),
+          child: Column(children: [
+            const Icon(Icons.qr_code_2_rounded, size: 48, color: AppTheme.red),
+            const SizedBox(height: 12),
+            SelectableText(
+              code,
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, letterSpacing: 2, color: AppTheme.textPrimary),
+              textAlign: TextAlign.center,
+            ),
+          ]),
+        ),
+        const SizedBox(height: 14),
+        Text(message, style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary, height: 1.55), textAlign: TextAlign.center),
+      ]),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(ctx).pop(),
+          child: const Text('Close', style: TextStyle(fontWeight: FontWeight.w700, color: AppTheme.red)),
+        ),
+      ],
+    ),
+  );
 }
 
 // ── Screen 14: Match Review ──────────────────────────────────────
@@ -402,20 +713,26 @@ class AdminMatchListScreen extends StatelessWidget {
   const AdminMatchListScreen({super.key});
   @override
   Widget build(BuildContext context) {
-    const data = MockData.matches;
-    return Scaffold(
-      appBar: _gradientAppBar('Review Matches', context),
-      body: Column(children: [
-        const Padding(padding: EdgeInsets.fromLTRB(16,8,16,0), child: AdminBar()),
-        Expanded(child: ListView.builder(padding: const EdgeInsets.all(16), itemCount: data.length, itemBuilder: (ctx, i) {
-          final m = data[i];
-          return CardRow(title: '${m.lostId} ↔ ${m.foundId}', subtitle: m.notes, status: m.status,
-            trailing: Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2), decoration: BoxDecoration(gradient: AppTheme.primaryGradient, borderRadius: BorderRadius.circular(999)),
-                child: Text('${m.score}%', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Colors.white))),
-            onTap: () => context.push('/admin/lost-found/match/${m.id}'),
-          ).animate().fadeIn(delay: (i*60).ms);
-        })),
-      ]),
+    return Consumer<DataService>(
+      builder: (context, dataService, child) {
+        final data = dataService.matches;
+        return Scaffold(
+          appBar: _gradientAppBar('Review Matches', context),
+          body: Column(children: [
+            const Padding(padding: EdgeInsets.fromLTRB(16,8,16,0), child: AdminBar()),
+            Expanded(child: data.isEmpty
+                ? const EmptyState(title: 'No Matches', icon: Icons.compare_arrows_rounded)
+                : ListView.builder(padding: const EdgeInsets.all(16), itemCount: data.length, itemBuilder: (ctx, i) {
+                    final m = data[i];
+                    return CardRow(title: '${m.lostId} ↔ ${m.foundId}', subtitle: m.notes, status: m.status,
+                      trailing: Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2), decoration: BoxDecoration(gradient: AppTheme.primaryGradient, borderRadius: BorderRadius.circular(999)),
+                          child: Text('${m.score}%', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Colors.white))),
+                      onTap: () => context.push('/admin/lost-found/match/${m.id}'),
+                    ).animate().fadeIn(delay: (i*60).ms);
+                  })),
+          ]),
+        );
+      },
     );
   }
 }
@@ -425,31 +742,35 @@ class AdminMatchDetailScreen extends StatelessWidget {
   const AdminMatchDetailScreen({super.key, required this.id});
   @override
   Widget build(BuildContext context) {
-    final m = MockData.matches.firstWhere((x) => x.id == id, orElse: () => MockData.matches.first);
-    return Scaffold(
-      appBar: _gradientAppBar('Match ${m.id}', context),
-      body: SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const AdminBar(), const SizedBox(height: 8),
-        Card(child: Padding(padding: const EdgeInsets.all(16), child: Column(children: [
-          Row(children: [
-            Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(gradient: AppTheme.primaryGradient, borderRadius: BorderRadius.circular(10)),
-                child: Text('${m.score}%', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Colors.white))),
-            const SizedBox(width: 14),
-            const Expanded(child: Text('AI Confidence Score', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700))),
-            StatusBadge(m.status),
-          ]),
-          const Divider(height: 18),
-          InfoRow(label: 'Lost Report', value: m.lostId),
-          InfoRow(label: 'Found Report', value: m.foundId),
-          const SizedBox(height: 10),
-          Container(width: double.infinity, padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: AppTheme.creamLight, borderRadius: BorderRadius.circular(10)),
-              child: Text(m.notes, style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary, height: 1.55))),
-        ]))),
-        const SizedBox(height: 10),
-        GradientButton(label: '✓ Confirm Match – Notify Student', onPressed: () => _toast(context, 'Match confirmed. Student notified.')),
-        const SizedBox(height: 10),
-        OutlineBtn(label: 'Reject Match', color: AppTheme.danger, onPressed: () => _toast(context, 'Match rejected')),
-      ])),
+    return Consumer<DataService>(
+      builder: (context, dataService, child) {
+        final m = dataService.matches.firstWhere((x) => x.id == id, orElse: () => dataService.matches.first);
+        return Scaffold(
+          appBar: _gradientAppBar('Match ${m.id}', context),
+          body: SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const AdminBar(), const SizedBox(height: 8),
+            Card(child: Padding(padding: const EdgeInsets.all(16), child: Column(children: [
+              Row(children: [
+                Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(gradient: AppTheme.primaryGradient, borderRadius: BorderRadius.circular(10)),
+                    child: Text('${m.score}%', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Colors.white))),
+                const SizedBox(width: 14),
+                const Expanded(child: Text('AI Confidence Score', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700))),
+                StatusBadge(m.status),
+              ]),
+              const Divider(height: 18),
+              InfoRow(label: 'Lost Report', value: m.lostId),
+              InfoRow(label: 'Found Report', value: m.foundId),
+              const SizedBox(height: 10),
+              Container(width: double.infinity, padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: AppTheme.creamLight, borderRadius: BorderRadius.circular(10)),
+                  child: Text(m.notes, style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary, height: 1.55))),
+            ]))),
+            const SizedBox(height: 10),
+            GradientButton(label: 'Confirm Match - Notify Student', onPressed: () => _toast(context, 'Match confirmed. Student notified.')),
+            const SizedBox(height: 10),
+            OutlineBtn(label: 'Reject Match', color: AppTheme.danger, onPressed: () => _toast(context, 'Match rejected')),
+          ])),
+        );
+      },
     );
   }
 }

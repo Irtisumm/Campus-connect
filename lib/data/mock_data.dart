@@ -14,8 +14,12 @@ class LostReport {
 class FoundReport {
   final String id, description, category, whereFound, whenFound, status;
   final int photos;
+  final String? handoverStatus; // null, 'Pending Handover', 'Handed Over', 'Claimed'
+  final String? qrCode;         // one-time QR code for handover proof
+  final bool qrScanned;
   const FoundReport({required this.id, required this.description, required this.category,
-    required this.whereFound, required this.whenFound, required this.status, this.photos = 0});
+    required this.whereFound, required this.whenFound, required this.status,
+    this.photos = 0, this.handoverStatus, this.qrCode, this.qrScanned = false});
 }
 
 class AdminLostReport {
@@ -58,9 +62,10 @@ class IssueHistory {
 
 class Event {
   final String id, title, date, time, location, category, organizer, description, status;
+  final String? hostStudentId; // student who created the event (if student-created)
   const Event({required this.id, required this.title, required this.date, required this.time,
     required this.location, required this.category, required this.organizer,
-    required this.description, required this.status});
+    required this.description, required this.status, this.hostStudentId});
 }
 
 class Candidate {
@@ -71,23 +76,43 @@ class Candidate {
 
 class Locker {
   final String id, location, status;
-  final String? studentId, endDate;
+  final String? studentId, endDate, startDate;
   final int? daysLeft;
+  final String lockType;        // 'key' or 'digital'
+  final String? digitalCode;    // password for digital lock
+  final double monthlyRent;     // RM10/month
+  final double deposit;         // RM100 deposit
+  final bool depositRefunded;
   const Locker({required this.id, required this.location, required this.status,
-    this.studentId, this.endDate, this.daysLeft});
+    this.studentId, this.endDate, this.daysLeft, this.startDate,
+    this.lockType = 'key', this.digitalCode, this.monthlyRent = 10.0,
+    this.deposit = 100.0, this.depositRefunded = false});
 }
 
 class LockerBooking {
   final String id, lockerId, location, startDate, endDate, status;
   final int daysLeft;
+  final int durationMonths;     // 2–12 months
+  final double monthlyRent;
+  final double deposit;
+  final double totalPaid;       // deposit + first month
   const LockerBooking({required this.id, required this.lockerId, required this.location,
-    required this.startDate, required this.endDate, required this.status, required this.daysLeft});
+    required this.startDate, required this.endDate, required this.status, required this.daysLeft,
+    this.durationMonths = 6, this.monthlyRent = 10.0, this.deposit = 100.0, this.totalPaid = 110.0});
 }
 
 class LockerHistory {
   final String action, staffId, timestamp;
   final String? reason;
   const LockerHistory({required this.action, required this.staffId, required this.timestamp, this.reason});
+}
+
+class StudentRegistration {
+  final String id, studentId, name, email, faculty, password, status; // status: Pending, Approved, Rejected
+  final String submittedDate;
+  const StudentRegistration({required this.id, required this.studentId, required this.name,
+    required this.email, required this.faculty, required this.password,
+    required this.status, required this.submittedDate});
 }
 
 // ── Mock Data ─────────────────────────────────────────────────────
@@ -101,9 +126,9 @@ class MockData {
   ];
 
   static const List<FoundReport> myFoundReports = [
-    FoundReport(id:'FR-001',description:'Black Android Phone',category:'Phone',whereFound:'Block A Corridor',whenFound:'2026-03-21',status:'In Inventory',photos:2),
-    FoundReport(id:'FR-002',description:'Brown Wallet with cash',category:'Wallet',whereFound:'Cafeteria Table 5',whenFound:'2026-03-19',status:'Resolved',photos:1),
-    FoundReport(id:'FR-003',description:'Student ID Card – Siti Nur',category:'ID Card',whereFound:'Library Level 2',whenFound:'2026-03-18',status:'In Review'),
+    FoundReport(id:'FR-001',description:'Black Android Phone',category:'Phone',whereFound:'Block A Corridor',whenFound:'2026-03-21',status:'In Inventory',photos:2,handoverStatus:'Handed Over',qrScanned:true),
+    FoundReport(id:'FR-002',description:'Brown Wallet with cash',category:'Wallet',whereFound:'Cafeteria Table 5',whenFound:'2026-03-19',status:'Resolved',photos:1,handoverStatus:'Claimed',qrScanned:true),
+    FoundReport(id:'FR-003',description:'Student ID Card – Siti Nur',category:'ID Card',whereFound:'Library Level 2',whenFound:'2026-03-18',status:'In Review',handoverStatus:'Pending Handover'),
   ];
 
   static const List<Notification> notifications = [
@@ -174,22 +199,22 @@ class MockData {
 
   // Lockers
   static const List<Locker> lockers = [
-    Locker(id:'LK-A01',location:'Block A, Level 1',status:'Available'),
-    Locker(id:'LK-A02',location:'Block A, Level 1',status:'Active',studentId:'S220334',endDate:'2026-06-30',daysLeft:98),
-    Locker(id:'LK-A03',location:'Block A, Level 1',status:'Available'),
-    Locker(id:'LK-A04',location:'Block A, Level 1',status:'Pending Pickup',studentId:'S220045'),
-    Locker(id:'LK-A05',location:'Block A, Level 1',status:'Available'),
-    Locker(id:'LK-A06',location:'Block A, Level 1',status:'Overdue',studentId:'S219001',endDate:'2026-03-01',daysLeft:-23),
-    Locker(id:'LK-B01',location:'Block B, Level 2',status:'Available'),
-    Locker(id:'LK-B02',location:'Block B, Level 2',status:'Active',studentId:'S221010',endDate:'2026-06-30',daysLeft:98),
-    Locker(id:'LK-B03',location:'Block B, Level 2',status:'Available'),
-    Locker(id:'LK-B04',location:'Block B, Level 2',status:'Blocked'),
-    Locker(id:'LK-C01',location:'Block C, Level 1',status:'Available'),
-    Locker(id:'LK-C02',location:'Block C, Level 1',status:'Available'),
+    Locker(id:'LK-A01',location:'Block A, Level 1',status:'Available',lockType:'digital'),
+    Locker(id:'LK-A02',location:'Block A, Level 1',status:'Active',studentId:'S220334',startDate:'2026-01-04',endDate:'2026-06-30',daysLeft:98,lockType:'key',monthlyRent:10.0,deposit:100.0),
+    Locker(id:'LK-A03',location:'Block A, Level 1',status:'Available',lockType:'key'),
+    Locker(id:'LK-A04',location:'Block A, Level 1',status:'Pending Pickup',studentId:'S220045',lockType:'key'),
+    Locker(id:'LK-A05',location:'Block A, Level 1',status:'Available',lockType:'digital'),
+    Locker(id:'LK-A06',location:'Block A, Level 1',status:'Overdue',studentId:'S219001',startDate:'2025-12-01',endDate:'2026-03-01',daysLeft:-23,lockType:'key',monthlyRent:10.0,deposit:100.0),
+    Locker(id:'LK-B01',location:'Block B, Level 2',status:'Available',lockType:'digital'),
+    Locker(id:'LK-B02',location:'Block B, Level 2',status:'Active',studentId:'S221010',startDate:'2026-01-04',endDate:'2026-06-30',daysLeft:98,lockType:'digital',digitalCode:'7294'),
+    Locker(id:'LK-B03',location:'Block B, Level 2',status:'Available',lockType:'key'),
+    Locker(id:'LK-B04',location:'Block B, Level 2',status:'Blocked',lockType:'key'),
+    Locker(id:'LK-C01',location:'Block C, Level 1',status:'Available',lockType:'digital'),
+    Locker(id:'LK-C02',location:'Block C, Level 1',status:'Available',lockType:'key'),
   ];
 
   static const List<LockerBooking> myBookings = [
-    LockerBooking(id:'BK-001',lockerId:'LK-A04',location:'Block A, Level 1',startDate:'2026-03-15',endDate:'2026-06-30',status:'Pending Pickup',daysLeft:98),
+    LockerBooking(id:'BK-001',lockerId:'LK-A04',location:'Block A, Level 1',startDate:'2026-03-15',endDate:'2026-06-30',status:'Pending Pickup',daysLeft:98,durationMonths:4,monthlyRent:10.0,deposit:100.0,totalPaid:110.0),
   ];
 
   static const Map<String,List<LockerHistory>> lockerHistory = {
@@ -202,4 +227,10 @@ class MockData {
       LockerHistory(action:'Marked Overdue',staffId:'system',timestamp:'2026-03-02 00:00',reason:'Auto: end date passed'),
     ],
   };
+
+  // Student Registrations (pending approval)
+  static const List<StudentRegistration> pendingRegistrations = [
+    StudentRegistration(id:'REG-001',studentId:'S220500',name:'Tan Wei Ming',email:'weiming@student.city.edu.my',faculty:'Faculty of Computing',password:'student123',status:'Pending',submittedDate:'2026-03-24'),
+    StudentRegistration(id:'REG-002',studentId:'S220501',name:'Nurul Aina',email:'aina@student.city.edu.my',faculty:'Faculty of Business',password:'student123',status:'Pending',submittedDate:'2026-03-25'),
+  ];
 }
