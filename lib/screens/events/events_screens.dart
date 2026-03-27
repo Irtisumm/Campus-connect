@@ -516,8 +516,8 @@ class _AdminEventEditorScreenState extends State<AdminEventEditorScreen> {
                   children: [
                     const Icon(Icons.info_outline_rounded, size: 16, color: AppTheme.textMuted),
                     const SizedBox(width: 8),
-                    Text('Current status: ', style: const TextStyle(fontSize: 12, color: AppTheme.textMuted)),
-                    StatusBadge(ev!.status),
+                    const Text('Current status: ', style: TextStyle(fontSize: 12, color: AppTheme.textMuted)),
+                    StatusBadge(ev.status),
                   ],
                 ),
               ),
@@ -528,7 +528,7 @@ class _AdminEventEditorScreenState extends State<AdminEventEditorScreen> {
             TextFormField(controller: _descCtrl, maxLines: 4, decoration: const InputDecoration(labelText: 'Description', alignLabelWithHint: true)),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
-              value: _category,
+              initialValue: _category,
               decoration: const InputDecoration(labelText: 'Category'),
               items: ['Academic','Sport','Club','General'].map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
               onChanged: (val) => setState(() => _category = val ?? _category),
@@ -697,7 +697,7 @@ class _CreateEventState extends State<CreateEventScreen> {
         const SectionLabel('Event Details'),
         TextFormField(controller: _titleC, decoration: const InputDecoration(labelText: 'Event Title', hintText: 'e.g. Tech Talks 2024'), validator: (v) => v!.isEmpty ? 'Required' : null),
         const SizedBox(height: 12),
-        DropdownButtonFormField<String>(value: _catVal, decoration: const InputDecoration(labelText: 'Category'), items: _cats.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(), onChanged: (v) => setState(() => _catVal = v), validator: (v) => v == null ? 'Required' : null),
+        DropdownButtonFormField<String>(initialValue: _catVal, decoration: const InputDecoration(labelText: 'Category'), items: _cats.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(), onChanged: (v) => setState(() => _catVal = v), validator: (v) => v == null ? 'Required' : null),
         const SizedBox(height: 12),
         TextFormField(controller: _dateC, decoration: const InputDecoration(labelText: 'Date', hintText: 'YYYY-MM-DD'), validator: (v) => v!.isEmpty ? 'Required' : null),
         const SizedBox(height: 12),

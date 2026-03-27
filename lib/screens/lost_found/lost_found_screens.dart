@@ -354,10 +354,10 @@ class _FoundDetailScreenState extends State<FoundDetailScreen> {
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Row(children: [
-          const Icon(Icons.check_circle_rounded, color: Colors.green, size: 28),
-          const SizedBox(width: 10),
-          const Text('Done!', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+        title: const Row(children: [
+          Icon(Icons.check_circle_rounded, color: Colors.green, size: 28),
+          SizedBox(width: 10),
+          Text('Done!', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
         ]),
         content: const Column(mainAxisSize: MainAxisSize.min, children: [
           Text('Item handover has been confirmed successfully.\n\nThank you for handing over the found item. You can track the progress in "My Found Reports".', style: TextStyle(fontSize: 13, color: AppTheme.textSecondary, height: 1.55)),

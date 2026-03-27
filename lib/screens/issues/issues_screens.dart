@@ -332,7 +332,7 @@ class _AdminIssueDetailScreenState extends State<AdminIssueDetailScreen> {
             const SectionLabel('Update Status'),
             Card(child: Padding(padding: const EdgeInsets.all(14), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               DropdownButtonFormField<String>(
-                value: _selectedStatus,
+                initialValue: _selectedStatus,
                 decoration: const InputDecoration(labelText: 'Change Status'),
                 items: ['New','Triaged','Assigned','In Progress','Resolved','Closed - Verified'].map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
                 onChanged: (value) => setState(() => _selectedStatus = value),

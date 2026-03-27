@@ -141,7 +141,7 @@ class DataService extends ChangeNotifier {
 
   // ── QR Code: Admin generates one-time QR for found item receive ──
   String generateReceiveQR(String foundReportId) {
-    final code = 'RCV-${foundReportId}-${Random().nextInt(999999).toString().padLeft(6, '0')}';
+    final code = 'RCV-$foundReportId-${Random().nextInt(999999).toString().padLeft(6, '0')}';
     final index = myFoundReports.indexWhere((r) => r.id == foundReportId);
     if (index != -1) {
       final r = myFoundReports[index];
@@ -178,7 +178,7 @@ class DataService extends ChangeNotifier {
 
   // Admin generates handover QR (for claiming student)
   String generateHandoverQR(String foundReportId) {
-    final code = 'HND-${foundReportId}-${Random().nextInt(999999).toString().padLeft(6, '0')}';
+    final code = 'HND-$foundReportId-${Random().nextInt(999999).toString().padLeft(6, '0')}';
     final index = myFoundReports.indexWhere((r) => r.id == foundReportId);
     if (index != -1) {
       final r = myFoundReports[index];
@@ -406,8 +406,8 @@ class DataService extends ChangeNotifier {
     final now = DateTime.now();
     final endDate = DateTime(now.year, now.month + durationMonths, now.day);
     final daysLeft = endDate.difference(now).inDays;
-    final deposit = 100.0;
-    final monthlyRent = 10.0;
+    const deposit = 100.0;
+    const monthlyRent = 10.0;
     final totalPaid = deposit + monthlyRent; // deposit + first month
 
     // Generate digital code if digital lock

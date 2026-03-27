@@ -130,7 +130,7 @@ class _RegistrationCard extends StatelessWidget {
           Row(children: [
             Container(
               width: 42, height: 42,
-              decoration: BoxDecoration(gradient: AppTheme.primaryGradient, shape: BoxShape.circle),
+              decoration: const BoxDecoration(gradient: AppTheme.primaryGradient, shape: BoxShape.circle),
               child: Center(child: Text(reg.name.isNotEmpty ? reg.name[0] : '?', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Colors.white))),
             ),
             const SizedBox(width: 12),

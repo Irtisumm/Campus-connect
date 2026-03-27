@@ -133,7 +133,7 @@ class BrowseLockersScreen extends StatelessWidget {
                 Row(children: [
                   _Key(Colors.grey.withOpacity(0.15), Colors.grey, 'Blocked'),
                   const SizedBox(width: 14),
-                  Text('D = Digital Lock  K = Key Lock', style: TextStyle(fontSize: 9, color: AppTheme.textMuted, fontWeight: FontWeight.w600)),
+                  const Text('D = Digital Lock  K = Key Lock', style: TextStyle(fontSize: 9, color: AppTheme.textMuted, fontWeight: FontWeight.w600)),
                 ]),
               ]);
             }),
@@ -236,7 +236,7 @@ class _LockerBookingScreenState extends State<LockerBookingScreen> {
             Card(child: Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               const Text('Select Duration', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: AppTheme.textPrimary)),
               const SizedBox(height: 4),
-              Text('Choose your rental period (2-12 months)', style: TextStyle(fontSize: 12, color: AppTheme.textMuted)),
+              const Text('Choose your rental period (2-12 months)', style: TextStyle(fontSize: 12, color: AppTheme.textMuted)),
               const SizedBox(height: 14),
               Row(children: [
                 Text('$_durationMonths months', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: AppTheme.red)),
@@ -262,7 +262,7 @@ class _LockerBookingScreenState extends State<LockerBookingScreen> {
                   onChanged: (v) => setState(() => _durationMonths = v.round()),
                 ),
               ),
-              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+              const Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                 Text('2 months', style: TextStyle(fontSize: 10, color: AppTheme.textMuted)),
                 Text('12 months', style: TextStyle(fontSize: 10, color: AppTheme.textMuted)),
               ]),
@@ -294,7 +294,7 @@ class _LockerBookingScreenState extends State<LockerBookingScreen> {
               ),
               const SizedBox(height: 8),
               Text('* Remaining rent of RM${((_monthlyRent * _durationMonths) - _firstMonthRent).toStringAsFixed(0)} billed monthly',
-                style: TextStyle(fontSize: 10, color: AppTheme.textMuted, fontStyle: FontStyle.italic)),
+                style: const TextStyle(fontSize: 10, color: AppTheme.textMuted, fontStyle: FontStyle.italic)),
             ]))).animate().fadeIn(delay: 150.ms),
 
             const SizedBox(height: 12),
@@ -374,10 +374,10 @@ class _LockerBookingScreenState extends State<LockerBookingScreen> {
   void _showDigitalCodeDialog(BuildContext context, String code) {
     showDialog(context: context, barrierDismissible: false, builder: (_) => AlertDialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      title: Row(children: [
+      title: const Row(children: [
         Icon(Icons.check_circle_rounded, color: AppTheme.red, size: 28),
-        const SizedBox(width: 10),
-        const Text('Booking Confirmed!', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+        SizedBox(width: 10),
+        Text('Booking Confirmed!', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
       ]),
       content: Column(mainAxisSize: MainAxisSize.min, children: [
         const Text('Your digital lock password is:', style: TextStyle(fontSize: 13, color: AppTheme.textSecondary)),
@@ -391,7 +391,7 @@ class _LockerBookingScreenState extends State<LockerBookingScreen> {
           child: Text(code, style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: 8)),
         ),
         const SizedBox(height: 12),
-        Text('You can always view this code in "My Locker".',
+        const Text('You can always view this code in "My Locker".',
           style: TextStyle(fontSize: 11, color: AppTheme.textMuted), textAlign: TextAlign.center),
       ]),
       actions: [
@@ -456,10 +456,10 @@ class MyLockerScreen extends StatelessWidget {
             if (locker.lockType == 'digital' && locker.digitalCode != null) ...[
               const SectionLabel('Lock Password'),
               Card(child: Padding(padding: const EdgeInsets.all(16), child: Column(children: [
-                Row(children: [
+                const Row(children: [
                   Icon(Icons.dialpad_rounded, color: AppTheme.red, size: 22),
-                  const SizedBox(width: 10),
-                  const Expanded(child: Text('Digital Lock Code', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700))),
+                  SizedBox(width: 10),
+                  Expanded(child: Text('Digital Lock Code', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700))),
                 ]),
                 const SizedBox(height: 12),
                 Container(
@@ -474,7 +474,7 @@ class MyLockerScreen extends StatelessWidget {
                     style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w900, color: AppTheme.red, letterSpacing: 8)),
                 ),
                 const SizedBox(height: 8),
-                Text('Use this code to unlock your locker', style: TextStyle(fontSize: 11, color: AppTheme.textMuted)),
+                const Text('Use this code to unlock your locker', style: TextStyle(fontSize: 11, color: AppTheme.textMuted)),
               ]))).animate().fadeIn(delay: 100.ms),
             ] else if (locker.lockType == 'key') ...[
               const SectionLabel('Key Collection'),
@@ -696,7 +696,7 @@ class _AdminLockerDetailScreenState extends State<AdminLockerDetailScreen> {
                   maxLines: 3,
                   decoration: InputDecoration(
                     hintText: 'Type your notice/reminder message...',
-                    hintStyle: TextStyle(fontSize: 13, color: AppTheme.textMuted),
+                    hintStyle: const TextStyle(fontSize: 13, color: AppTheme.textMuted),
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AppTheme.red.withOpacity(0.2))),
                     enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AppTheme.red.withOpacity(0.2))),
                     focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppTheme.red)),
@@ -744,10 +744,10 @@ class _AdminLockerDetailScreenState extends State<AdminLockerDetailScreen> {
   void _showTerminateDialog(BuildContext context, Locker lk) {
     showDialog(context: context, builder: (_) => AlertDialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      title: Row(children: [
-        const Icon(Icons.warning_rounded, color: AppTheme.danger, size: 24),
-        const SizedBox(width: 8),
-        const Text('Terminate Agreement', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+      title: const Row(children: [
+        Icon(Icons.warning_rounded, color: AppTheme.danger, size: 24),
+        SizedBox(width: 8),
+        Text('Terminate Agreement', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
       ]),
       content: Column(mainAxisSize: MainAxisSize.min, children: [
         Text('This will terminate the rental agreement for locker ${lk.id} (${lk.studentId}).', style: const TextStyle(fontSize: 13)),
@@ -794,7 +794,7 @@ class _AdminLockerDetailScreenState extends State<AdminLockerDetailScreen> {
           maxLines: 2,
           decoration: InputDecoration(
             hintText: 'Reason for blocking (optional)',
-            hintStyle: TextStyle(fontSize: 13, color: AppTheme.textMuted),
+            hintStyle: const TextStyle(fontSize: 13, color: AppTheme.textMuted),
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
             contentPadding: const EdgeInsets.all(12),
           ),
